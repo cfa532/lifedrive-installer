@@ -49,12 +49,25 @@ function download(url, destination, redirects = 0) {
   });
 }
 
+function leitherServiceIsRunning() {
+  const result = spawnSync("ps", ["-axo", "comm="], { encoding: "utf8" });
+  if (result.error || result.status !== 0) {
+    throw result.error || new Error("LifeDrive could not inspect the running services on this server.");
+  }
+  return result.stdout
+    .split(/\r?\n/)
+    .some(command => path.basename(command.trim()) === "Leither");
+}
+
 async function main() {
   if (process.platform !== "linux" && process.platform !== "darwin") {
     throw new Error("LifeDrive setup currently supports Linux and macOS Leither servers.");
   }
   if (!fs.existsSync("/bin/bash")) {
     throw new Error("LifeDrive setup requires /bin/bash.");
+  }
+  if (!leitherServiceIsRunning()) {
+    throw new Error("Leither is not running. Start the Leither service, then run this command again.");
   }
 
   const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "lifedrive-npx-"));
