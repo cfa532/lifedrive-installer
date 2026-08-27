@@ -1,12 +1,13 @@
 {
   "name": "@inoku/lifedrive",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "Install LifeDrive on a locally owned Leither server",
   "bin": {
     "lifedrive": "bin/lifedrive.js"
   },
   "files": [
-    "bin/lifedrive.js"
+    "bin/lifedrive.js",
+    "dist"
   ],
   "engines": {
     "node": ">=18"
