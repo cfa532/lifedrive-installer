@@ -152,8 +152,8 @@ if [[ "$RELEASE_BASE" == file://* ]]; then
 else
   echo "Downloading the latest LifeDrive release from GitHub..."
 fi
-curl -fL --retry 3 --connect-timeout 20 -o "$INSTALL_TEMP/$ARCHIVE_NAME" "$RELEASE_BASE/$ARCHIVE_NAME"
-curl -fL --retry 3 --connect-timeout 20 -o "$INSTALL_TEMP/$CHECKSUM_NAME" "$RELEASE_BASE/$CHECKSUM_NAME"
+curl -fsSL --retry 3 --connect-timeout 20 -o "$INSTALL_TEMP/$ARCHIVE_NAME" "$RELEASE_BASE/$ARCHIVE_NAME"
+curl -fsSL --retry 3 --connect-timeout 20 -o "$INSTALL_TEMP/$CHECKSUM_NAME" "$RELEASE_BASE/$CHECKSUM_NAME"
 
 expected_checksum=$(awk 'NR==1 {print $1}' "$INSTALL_TEMP/$CHECKSUM_NAME")
 if command -v sha256sum >/dev/null 2>&1; then
