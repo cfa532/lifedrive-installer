@@ -24,4 +24,6 @@ chmod +x lifedrive-install.sh
 
 The bootstrap verifies `lifedrive-bundle.tar.gz` against its SHA-256 file, installs it below the detected Leither root, and runs the interactive SSH setup. The npm launcher reads those assets from its own package; the standalone bootstrap downloads them from the matching GitHub Release. All installer options after the npm package name pass through to that bootstrap.
 
+Setup uses the built-in AV1 registration endpoint and does not ask users for a service URL. A user who deliberately chooses `--skip-domain` receives a direct LAN URL containing the detected server address, configured Leither port, published app MID, and `ver=last`.
+
 Source code and design documentation are maintained separately. No private key, password, enrollment code, or node-specific application MID is included in these release assets.
