@@ -217,6 +217,10 @@ done
 # the current top-level browser objects below /mm/<app-mid>:<version>/.
 old_web_dir="$LEITHER_WORKDIR/lifeDrive/web"
 if [[ -d "$old_web_dir" ]]; then rm -rf -- "$old_web_dir"; fi
+# Hosted-demo assets were accidentally included in the 0.7.8 release. They
+# are not used by the native app and collide with Leither's MiMei short names.
+old_demo_assets="$LEITHER_WORKDIR/lifeDrive/inoku"
+if [[ -d "$old_demo_assets" ]]; then rm -rf -- "$old_demo_assets"; fi
 # Tahoe V0.24.05 derives the same application-entry short name, "index", from
 # index.html and index_entry.js. Remove the rejected TweetWeb-era filename when
 # upgrading to the distinct top-level browser object lifedrive.js.
