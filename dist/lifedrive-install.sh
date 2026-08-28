@@ -5,6 +5,7 @@ RELEASE_BASE="${LIFEDRIVE_RELEASE_BASE:-https://github.com/cfa532/lifedrive-inst
 ARCHIVE_NAME="lifedrive-bundle.tar.gz"
 CHECKSUM_NAME="$ARCHIVE_NAME.sha256"
 LEITHER_WORKDIR="${LIFEDRIVE_WORKDIR:-}"
+UPGRADE_ONLY=0
 setup_command_args=()
 setup_arg_count=0
 
@@ -15,6 +16,7 @@ Usage: lifedrive-install.sh [installer options] [setup options]
 Installer options:
   --leither-root DIR        Select one service when multiple Leither instances are running.
   --release-base URL        Alternate GitHub Release asset base URL.
+  --upgrade                 Upgrade an existing LifeDrive without changing its owner or address.
 
 Setup options are forwarded to lifeDrive-setup.sh. Common examples:
   --registry-url URL
@@ -35,6 +37,11 @@ while (( $# )); do
       shift
       [[ $# -gt 0 ]] || { echo "--release-base requires a URL" >&2; exit 2; }
       RELEASE_BASE="${1%/}"
+      ;;
+    --upgrade)
+      UPGRADE_ONLY=1
+      setup_command_args+=("--upgrade")
+      setup_arg_count=$((setup_arg_count + 1))
       ;;
     -h|--help) usage; exit 0 ;;
     *) setup_command_args+=("$1"); setup_arg_count=$((setup_arg_count + 1)) ;;
@@ -129,6 +136,15 @@ if [[ ! -x "$LEITHER_WORKDIR/Leither" ]]; then
   exit 1
 fi
 echo "Found running Leither service at $LEITHER_WORKDIR"
+
+if (( UPGRADE_ONLY )); then
+  if [[ ! -d "$LEITHER_WORKDIR/lifeDrive" || ! -s "$LEITHER_WORKDIR/lifeDrive.appid" || ! -s "$LEITHER_WORKDIR/lifeDrive.owner" ]]; then
+    echo "LifeDrive upgrade stopped: no complete existing installation was found at $LEITHER_WORKDIR." >&2
+    echo "Install it first with: npx --yes @inoku/lifedrive@latest" >&2
+    exit 1
+  fi
+  echo "Existing LifeDrive installation found. Its owner, address, and drive data will be preserved."
+fi
 
 if ! command -v curl >/dev/null 2>&1; then
   echo "LifeDrive installation requires curl." >&2
