@@ -6,6 +6,7 @@ ARCHIVE_NAME="lifedrive-bundle.tar.gz"
 CHECKSUM_NAME="$ARCHIVE_NAME.sha256"
 LEITHER_WORKDIR="${LIFEDRIVE_WORKDIR:-}"
 UPGRADE_ONLY=0
+MANAGEMENT_ONLY=0
 setup_command_args=()
 setup_arg_count=0
 
@@ -16,12 +17,15 @@ Usage: lifedrive-install.sh [installer options] [setup options]
 Installer options:
   --leither-root DIR        Select one service when multiple Leither instances are running.
   --release-base URL        Alternate GitHub Release asset base URL.
-  --upgrade                 Upgrade an existing LifeDrive without changing its owner or address.
+  --upgrade                 Upgrade an existing LifeDrive without changing device authorization.
 
 Setup options are forwarded to lifeDrive-setup.sh. Common examples:
   --registry-url URL
   --publisher-key FILE
-  --recover
+  --add-device LABEL
+  --identity-out FILE
+  --list-devices
+  --revoke-device UID
   --skip-domain
 EOF
 }
@@ -41,6 +45,11 @@ while (( $# )); do
     --upgrade)
       UPGRADE_ONLY=1
       setup_command_args+=("--upgrade")
+      setup_arg_count=$((setup_arg_count + 1))
+      ;;
+    --add-device|--list-devices|--revoke-device)
+      MANAGEMENT_ONLY=1
+      setup_command_args+=("$1")
       setup_arg_count=$((setup_arg_count + 1))
       ;;
     -h|--help) usage; exit 0 ;;
@@ -137,13 +146,24 @@ if [[ ! -x "$LEITHER_WORKDIR/Leither" ]]; then
 fi
 echo "Found running Leither service at $LEITHER_WORKDIR"
 
+if [[ -s "$LEITHER_WORKDIR/lifeDrive.owner" && "$(sed -n '1p' "$LEITHER_WORKDIR/lifeDrive.owner")" != "lifedrive-key-auth-v1" ]]; then
+  echo "LifeDrive installation stopped: the existing prototype uses retired password-owner state." >&2
+  echo "This key-auth release intentionally requires a fresh LifeDrive owner state." >&2
+  exit 1
+fi
+if [[ -s "$LEITHER_WORKDIR/lifeDrive.owner" ]] && (( ! UPGRADE_ONLY && ! MANAGEMENT_ONLY )); then
+  echo "LifeDrive installation stopped: an initialized LifeDrive already exists at $LEITHER_WORKDIR." >&2
+  echo "Use --upgrade for application files or --add-device for another browser." >&2
+  exit 1
+fi
+
 if (( UPGRADE_ONLY )); then
   if [[ ! -d "$LEITHER_WORKDIR/lifeDrive" || ! -s "$LEITHER_WORKDIR/lifeDrive.appid" || ! -s "$LEITHER_WORKDIR/lifeDrive.owner" ]]; then
     echo "LifeDrive upgrade stopped: no complete existing installation was found at $LEITHER_WORKDIR." >&2
     echo "Install it first with: npx --yes @inoku/lifedrive@latest" >&2
     exit 1
   fi
-  echo "Existing LifeDrive installation found. Its owner, address, and drive data will be preserved."
+  echo "Existing LifeDrive installation found. Its device keys, address, and drive data will be preserved."
 fi
 
 if ! command -v curl >/dev/null 2>&1; then
@@ -190,6 +210,15 @@ tar -xzf "$INSTALL_TEMP/$ARCHIVE_NAME" -C "$INSTALL_TEMP/bundle"
 if [[ ! -x "$INSTALL_TEMP/bundle/lifeDrive/lifeDrive-setup.sh" || ! -f "$INSTALL_TEMP/bundle/lifeDrive/main.go" ]]; then
   echo "LifeDrive release verification failed; required files are missing." >&2
   exit 1
+fi
+
+if (( MANAGEMENT_ONLY )); then
+  export LIFEDRIVE_WORKDIR="$LEITHER_WORKDIR"
+  export LIFEDRIVE_LEITHER_PATH="$LEITHER_WORKDIR/Leither"
+  management_command=(/bin/bash "$INSTALL_TEMP/bundle/lifeDrive/lifeDrive-setup.sh")
+  if (( setup_arg_count )); then management_command+=("${setup_command_args[@]}"); fi
+  "${management_command[@]}"
+  exit 0
 fi
 
 backup_dir="$LEITHER_WORKDIR/deploy-backups/lifedrive-$(date -u +%Y%m%dT%H%M%SZ)"

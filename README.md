@@ -8,7 +8,7 @@ On the Leither server, run:
 npx --yes @inoku/lifedrive
 ```
 
-To upgrade an existing installation without changing its owner, password, public address, or drive data, run:
+To upgrade an existing key-auth installation without changing its authorized devices, public address, or drive data, run:
 
 ```bash
 npx --yes @inoku/lifedrive@latest --upgrade
@@ -32,6 +32,8 @@ The bootstrap verifies `lifedrive-bundle.tar.gz` against its SHA-256 file, insta
 
 Setup uses the built-in AV1 registration endpoint and does not ask users for a service URL, AV1 login, or developer-issued code. A user who deliberately chooses `--skip-domain` receives a direct LAN URL containing the detected server address, configured Leither port, published app MID, and `ver=last`.
 
-An existing installation is backed up before replacement. The explicit `--upgrade` path requires the saved application and owner identities before changing files, republishes the same application MID, and does not rerun owner or domain setup. The ordinary installer still reuses the saved username, offers to keep or replace the owner password, and treats the same AV1 username/App MID pair as an idempotent registration. Application files are active only after Leither advances the application from `cur` to `last`; a publication timeout leaves the prior `last` version serving users.
+LifeDrive requires Leither V0.24.11 or newer. Fresh setup creates a separate Ed25519 `sodiumv2` identity for the primary browser and prints the path to a protected identity file. Import that file once from the LifeDrive sign-in screen; afterward the browser signs short-lived PPTs locally and login is automatic. Add another independent device with `npx --yes @inoku/lifedrive --add-device "Device label"`. List or revoke device keys with `--list-devices` and `--revoke-device <uid>`.
 
-Source code and design documentation are maintained separately. No private key, password, or node-specific application MID is included in these release assets.
+An existing installation is backed up before replacement. The explicit `--upgrade` path requires the saved application and key-auth owner state before changing files, republishes the same application MID, and does not rerun device or domain setup. This release intentionally does not migrate the earlier password-owner prototype. Application files are active only after Leither advances the application from `cur` to `last`; a publication timeout leaves the prior `last` version serving users.
+
+Source code and design documentation are maintained separately. No device key, identity bundle, PPT, publisher key, or node-specific application MID is included in these release assets.
