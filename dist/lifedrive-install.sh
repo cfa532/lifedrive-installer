@@ -8,6 +8,7 @@ LEITHER_WORKDIR="${LIFEDRIVE_WORKDIR:-}"
 UPGRADE_ONLY=0
 MANAGEMENT_ONLY=0
 HOUSEHOLD_CONFIG=""
+HOUSEHOLD_SETUP=0
 setup_command_args=()
 setup_arg_count=0
 
@@ -19,6 +20,7 @@ Installer options:
   --leither-root DIR        Select one service when multiple Leither instances are running.
   --release-base URL        Alternate GitHub Release asset base URL.
   --upgrade                 Upgrade an existing LifeDrive without changing device authorization.
+  --household              Prepare mobile household setup using the existing node address.
   --household-config FILE   Install mobile-led household setup using a private service configuration.
 
 Setup options are forwarded to lifeDrive-setup.sh. Common examples:
@@ -34,6 +36,9 @@ EOF
 
 while (( $# )); do
   case "$1" in
+    --household)
+      HOUSEHOLD_SETUP=1
+      ;;
     --household-config)
       shift
       [[ $# -gt 0 && -f "$1" ]] || { echo "--household-config requires a configuration file" >&2; exit 2; }
@@ -64,6 +69,11 @@ while (( $# )); do
   esac
   shift
 done
+
+if (( HOUSEHOLD_SETUP )) && { [[ -n "$HOUSEHOLD_CONFIG" ]] || (( MANAGEMENT_ONLY )); }; then
+  echo "Use --household separately from --household-config and device-management options." >&2
+  exit 2
+fi
 
 running_pids=$(ps -axo pid=,comm= 2>/dev/null | awk '$2 == "Leither" || $2 ~ /\/Leither$/ { print $1 }')
 if [[ -z "$running_pids" ]]; then
@@ -281,6 +291,10 @@ chmod 700 "$LEITHER_WORKDIR/lifeDrive/"*.sh
 
 export LIFEDRIVE_WORKDIR="$LEITHER_WORKDIR"
 export LIFEDRIVE_LEITHER_PATH="$LEITHER_WORKDIR/Leither"
+if (( HOUSEHOLD_SETUP )); then
+  /bin/bash "$LEITHER_WORKDIR/lifedrive-identity/setup-node.sh" "$LEITHER_WORKDIR"
+  exit 0
+fi
 if [[ -n "$HOUSEHOLD_CONFIG" ]]; then
   /bin/bash "$LEITHER_WORKDIR/lifedrive-identity/install.sh" "$HOUSEHOLD_CONFIG"
   exit 0

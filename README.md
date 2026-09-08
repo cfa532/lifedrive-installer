@@ -42,6 +42,8 @@ Source code and design documentation are maintained separately. No device key, i
 
 This release includes the household identity service for Linux and macOS. Existing installations retain their application MID. An ordinary `--upgrade` installs the service files but does not automatically activate household mode.
 
-Household activation requires a private identity-service configuration, HTTPS certificate, and a restricted connection to Leither so public legacy endpoints cannot bypass device permissions. Supply the prepared configuration with `--household-config /absolute/path/to/identity.json`; the installer prints a one-time invitation for LifeDrive mobile. Start the identity service using the included service template before pairing. Each household user starts with an empty personal drive.
+Household activation uses the existing Leither node address. Run the matching release with `--upgrade --household`. The helper prepares private local configuration, prints a one-time mobile invitation, and on Linux starts the loopback identity service through systemd (sudo may be requested). No additional public hostname or TLS certificate is required. On iPhone, use Settings → Set up household users. Each user starts with an empty personal drive; older files are not imported.
+
+The shared browser URL remains `http://drive.inoku.uk/?n=<node-id>`. Native identities persist; browser sessions last for the current page, up to eight hours. Direct setup requires Leither to enforce private MiMei access and stops if its checks cannot confirm that. See the source deployment notes for the HTTP transport limitations.
 
 Once synchronized, Leither follows new publications of the same application MID. The household browser also loads that published application. Updates to the separate identity-service executable require another npm upgrade and a restart of that service. The installer never restarts Leither. Install mobile application updates separately.
