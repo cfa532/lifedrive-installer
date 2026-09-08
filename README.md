@@ -34,6 +34,14 @@ Setup uses the built-in AV1 registration endpoint and does not ask users for a s
 
 LifeDrive requires Leither V0.24.11 or newer. Fresh setup creates a separate Ed25519 `sodiumv2` identity for the primary browser and prints the path to a protected identity file. Import that file once from the LifeDrive sign-in screen; afterward the browser signs short-lived PPTs locally and login is automatic. Add another independent device with `npx --yes @inoku/lifedrive --add-device "Device label"`. List or revoke device keys with `--list-devices` and `--revoke-device <uid>`.
 
-An existing installation is backed up before replacement. The explicit `--upgrade` path requires the saved application and key-auth owner state before changing files, republishes the same application MID, and does not rerun device or domain setup. This release intentionally does not migrate the earlier password-owner prototype. Application files are active only after Leither advances the application from `cur` to `last`; a publication timeout leaves the prior `last` version serving users.
+An existing installation is backed up before replacement. The explicit `--upgrade` path requires the saved application and key-auth owner state before changing files, synchronizes the same published application MID, and does not rerun device or domain setup. This release intentionally does not migrate the earlier password-owner prototype. Application files are active only after Leither advances the application from `cur` to `last`; a publication timeout leaves the prior `last` version serving users.
 
 Source code and design documentation are maintained separately. No device key, identity bundle, PPT, publisher key, or node-specific application MID is included in these release assets.
+
+## Household users
+
+This release includes the household identity service for Linux and macOS. Existing installations retain their application MID. An ordinary `--upgrade` installs the service files but does not automatically activate household mode.
+
+Household activation requires a private identity-service configuration, HTTPS certificate, and a restricted connection to Leither so public legacy endpoints cannot bypass device permissions. Supply the prepared configuration with `--household-config /absolute/path/to/identity.json`; the installer prints a one-time invitation for LifeDrive mobile. Start the identity service using the included service template before pairing. Each household user starts with an empty personal drive.
+
+Once synchronized, Leither follows new publications of the same application MID. The household browser also loads that published application. Updates to the separate identity-service executable require another npm upgrade and a restart of that service. The installer never restarts Leither. Install mobile application updates separately.

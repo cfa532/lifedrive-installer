@@ -7,6 +7,7 @@ CHECKSUM_NAME="$ARCHIVE_NAME.sha256"
 LEITHER_WORKDIR="${LIFEDRIVE_WORKDIR:-}"
 UPGRADE_ONLY=0
 MANAGEMENT_ONLY=0
+HOUSEHOLD_CONFIG=""
 setup_command_args=()
 setup_arg_count=0
 
@@ -18,6 +19,7 @@ Installer options:
   --leither-root DIR        Select one service when multiple Leither instances are running.
   --release-base URL        Alternate GitHub Release asset base URL.
   --upgrade                 Upgrade an existing LifeDrive without changing device authorization.
+  --household-config FILE   Install mobile-led household setup using a private service configuration.
 
 Setup options are forwarded to lifeDrive-setup.sh. Common examples:
   --registry-url URL
@@ -32,6 +34,11 @@ EOF
 
 while (( $# )); do
   case "$1" in
+    --household-config)
+      shift
+      [[ $# -gt 0 && -f "$1" ]] || { echo "--household-config requires a configuration file" >&2; exit 2; }
+      HOUSEHOLD_CONFIG="$1"
+      ;;
     --leither-root)
       shift
       [[ $# -gt 0 ]] || { echo "--leither-root requires a directory" >&2; exit 2; }
@@ -151,14 +158,14 @@ if [[ -s "$LEITHER_WORKDIR/lifeDrive.owner" && "$(sed -n '1p' "$LEITHER_WORKDIR/
   echo "This key-auth release intentionally requires a fresh LifeDrive owner state." >&2
   exit 1
 fi
-if [[ -s "$LEITHER_WORKDIR/lifeDrive.owner" ]] && (( ! UPGRADE_ONLY && ! MANAGEMENT_ONLY )); then
+if [[ -s "$LEITHER_WORKDIR/lifeDrive.owner" && -z "$HOUSEHOLD_CONFIG" ]] && (( ! UPGRADE_ONLY && ! MANAGEMENT_ONLY )); then
   echo "LifeDrive installation stopped: an initialized LifeDrive already exists at $LEITHER_WORKDIR." >&2
   echo "Use --upgrade for application files or --add-device for another browser." >&2
   exit 1
 fi
 
 if (( UPGRADE_ONLY )); then
-  if [[ ! -d "$LEITHER_WORKDIR/lifeDrive" || ! -s "$LEITHER_WORKDIR/lifeDrive.appid" || ! -s "$LEITHER_WORKDIR/lifeDrive.owner" ]]; then
+  if [[ ! -d "$LEITHER_WORKDIR/lifeDrive" ]] || { [[ ! -s "$LEITHER_WORKDIR/lifeDrive.owner" ]] && [[ ! -s "$LEITHER_WORKDIR/lifeDrive.households.json" ]]; }; then
     echo "LifeDrive upgrade stopped: no complete existing installation was found at $LEITHER_WORKDIR." >&2
     echo "Install it first with: npx --yes @inoku/lifedrive@latest" >&2
     exit 1
@@ -260,11 +267,29 @@ if [[ -f "$old_browser_entry" ]]; then rm -f -- "$old_browser_entry"; fi
 old_browser_style="$LEITHER_WORKDIR/lifeDrive/index.css"
 if [[ -f "$old_browser_style" ]]; then rm -f -- "$old_browser_style"; fi
 cp -R "$INSTALL_TEMP/bundle/lifeDrive/." "$LEITHER_WORKDIR/lifeDrive/"
+if [[ -d "$INSTALL_TEMP/bundle/identity" ]]; then
+  mkdir -p "$LEITHER_WORKDIR/lifedrive-identity"
+  for identity_asset in "$INSTALL_TEMP/bundle/identity/"*; do
+    identity_name=$(basename "$identity_asset")
+    cp "$identity_asset" "$LEITHER_WORKDIR/lifedrive-identity/.$identity_name.new"
+    mv "$LEITHER_WORKDIR/lifedrive-identity/.$identity_name.new" "$LEITHER_WORKDIR/lifedrive-identity/$identity_name"
+  done
+  chmod 700 "$LEITHER_WORKDIR/lifedrive-identity"
+fi
 chmod 700 "$LEITHER_WORKDIR/lifeDrive"
 chmod 700 "$LEITHER_WORKDIR/lifeDrive/"*.sh
 
 export LIFEDRIVE_WORKDIR="$LEITHER_WORKDIR"
 export LIFEDRIVE_LEITHER_PATH="$LEITHER_WORKDIR/Leither"
+if [[ -n "$HOUSEHOLD_CONFIG" ]]; then
+  /bin/bash "$LEITHER_WORKDIR/lifedrive-identity/install.sh" "$HOUSEHOLD_CONFIG"
+  exit 0
+fi
+if [[ -s "$LEITHER_WORKDIR/lifeDrive.households.json" ]]; then
+  echo "LifeDrive application and identity-service files updated. Household users and keys were preserved."
+  echo "Restart only the LifeDrive identity service through its service manager to load the new binary."
+  exit 0
+fi
 setup_command=("$LEITHER_WORKDIR/lifeDrive/lifeDrive-setup.sh")
 if (( setup_arg_count )); then
   setup_command+=("${setup_command_args[@]}")
