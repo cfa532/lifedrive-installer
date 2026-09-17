@@ -2,6 +2,8 @@
 
 This public repository contains versioned LifeDrive installation assets built from the private LifeAlbum source repository.
 
+**New to LifeDrive?** Read the [user manual](USER_MANUAL.md): installing and upgrading a node, users and devices, and what to do when a device or an identity is lost.
+
 On the Leither server, run:
 
 ```bash
@@ -42,8 +44,8 @@ Source code and design documentation are maintained separately. No device key, i
 
 This release includes the household identity service for Linux and macOS. Existing installations retain their application MID. An ordinary `--upgrade` installs the service files but does not automatically activate household mode.
 
-Household activation uses the existing Leither node address. Run the matching release with `--upgrade --household`. The helper prepares private local configuration, prints a one-time mobile invitation, and on Linux starts the loopback identity service through systemd (sudo may be requested). No additional public hostname or TLS certificate is required. On iPhone, use Settings → Set up household users. Each user starts with an empty personal drive; older files are not imported.
+Household activation uses the existing Leither node address. Run the matching release with `--upgrade --household`. The helper prepares private local configuration, prints a one-time mobile invitation, and on Linux starts the loopback identity service through systemd (sudo may be requested). No additional public hostname or TLS certificate is required. On iPhone or Android, use Settings → Set up users. Each user starts with an empty personal drive; older files are not imported.
 
-The shared browser URL remains `http://drive.inoku.uk/?n=<node-id>`. Native identities persist; browser sessions last for the current page, up to eight hours. Direct setup requires Leither to enforce private MiMei access and stops if its checks cannot confirm that. See the source deployment notes for the HTTP transport limitations.
+The shared browser URL remains `http://drive.inoku.uk/?n=<node-id>`. Native identities persist; a paired browser stays signed in until it goes seven days without use. Direct setup requires Leither to enforce private MiMei access and stops if its checks cannot confirm that. See the source deployment notes for the HTTP transport limitations.
 
 Once synchronized, Leither follows new publications of the same application MID. The household browser also loads that published application. Updates to the separate identity-service executable require another npm upgrade and a restart of that service. The installer never restarts Leither. Install mobile application updates separately.
