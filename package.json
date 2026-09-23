@@ -1,12 +1,21 @@
 {
   "name": "@inoku/lifedrive",
-  "version": "0.7.40",
-  "description": "Install or upgrade LifeDrive on a locally owned Leither server",
+  "version": "0.7.41",
+  "description": "Install LifeDrive and its Leither runtime on Linux or macOS",
+  "os": [
+    "linux",
+    "darwin"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
   "bin": {
     "lifedrive": "bin/lifedrive.js"
   },
   "files": [
     "bin/lifedrive.js",
+    "USER_MANUAL.md",
     "dist"
   ],
   "engines": {

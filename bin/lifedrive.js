@@ -11,25 +11,12 @@ const installerPath = path.join(distributionDirectory, "lifedrive-install.sh");
 const bundlePath = path.join(distributionDirectory, "lifedrive-bundle.tar.gz");
 const checksumPath = `${bundlePath}.sha256`;
 
-function leitherServiceIsRunning() {
-  const result = spawnSync("ps", ["-axo", "comm="], { encoding: "utf8" });
-  if (result.error || result.status !== 0) {
-    throw result.error || new Error("LifeDrive could not inspect the running services on this server.");
-  }
-  return result.stdout
-    .split(/\r?\n/)
-    .some(command => path.basename(command.trim()) === "Leither");
-}
-
 function main() {
   if (process.platform !== "linux" && process.platform !== "darwin") {
     throw new Error("LifeDrive setup currently supports Linux and macOS Leither servers.");
   }
   if (!fs.existsSync("/bin/bash")) {
     throw new Error("LifeDrive setup requires /bin/bash.");
-  }
-  if (!leitherServiceIsRunning()) {
-    throw new Error("Leither is not running. Start the Leither service, then run this command again.");
   }
   if (![installerPath, bundlePath, checksumPath].every(candidate => fs.existsSync(candidate))) {
     throw new Error("The npm package is incomplete. Reinstall @inoku/lifedrive and try again.");

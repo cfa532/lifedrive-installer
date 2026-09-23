@@ -2,9 +2,11 @@
 
 This public repository contains versioned LifeDrive installation assets built from the private LifeAlbum source repository.
 
+The same `@inoku/lifedrive` npm package supports Linux and macOS on Apple Silicon/ARM64 and Intel/AMD64. Install Node.js 18 or later, then run the commands below as your normal user account (on a Mac, use Terminal). Fresh setup installs and starts Leither when it is missing. macOS includes the required Bash, curl, tar, and SHA-256 tools; Homebrew is not required by the installer.
+
 **New to LifeDrive?** Read the [user manual](USER_MANUAL.md): installing and upgrading a node, users and devices, and what to do when a device or an identity is lost.
 
-On the Leither server, run:
+On the computer that will host LifeDrive, run:
 
 ```bash
 npx --yes @inoku/lifedrive
@@ -16,13 +18,34 @@ To upgrade an existing key-auth installation without changing its authorized dev
 npx --yes @inoku/lifedrive@latest --upgrade
 ```
 
-The installer first confirms that the Leither service is running, then finds its executable directory automatically. It stops without downloading or installing LifeDrive when Leither is absent. If the server deliberately runs multiple Leither instances, select one explicitly:
+The installer reuses a running Leither node and finds its directory automatically. If none is running, fresh setup first looks for Leither in the selected directory, the current directory, or on `PATH`. Otherwise it installs a new node in `~/.local/share/lifedrive/leither`. It downloads the matching binary from the [official Leither distribution](http://vzhan.cn/#start.html), verifies its SHA-256 checksum, initializes local configuration and keys, installs and starts a system service, and waits for that service's process and local version endpoint before continuing with LifeDrive. Existing executables, configuration, and keys are never replaced. An existing stopped node can be started by selecting its directory.
+
+Choose another empty directory for a fresh node, select a stopped node, or select among multiple running instances:
 
 ```bash
 npx --yes @inoku/lifedrive --leither-root /path/to/leither
 ```
 
-The npm package contains the versioned installer, checksum, and LifeDrive bundle. After npm supplies the package, setup does not depend on GitHub's release-asset network. If npm is unavailable, use the GitHub release bootstrap directly:
+Use `--no-install-leither` to require an already running node. Upgrade and device-management commands always require a running node and never install or start Leither. A nonempty directory without a Leither executable is left untouched. New nodes use port 4800 by default; a port conflict stops setup with instructions. Leither V0.24.11 or newer is required; older existing nodes must be upgraded separately.
+
+### Leither starts automatically at boot
+
+Fresh setup installs a system service using `sudo`. Leither runs as the account invoking setup, using the selected node directory. It starts at boot, survives logout, and is restarted after a crash. The service manager runs `Leither run` in the foreground so it can supervise the process directly. Linux must use systemd; macOS uses a system LaunchDaemon.
+
+| Platform | Service definition | Status and logs |
+|---|---|---|
+| Linux | `/etc/systemd/system/lifedrive-leither.service` | `systemctl status lifedrive-leither.service`; `journalctl -u lifedrive-leither.service` |
+| macOS | `/Library/LaunchDaemons/uk.inoku.leither.plist` | `sudo launchctl print system/uk.inoku.leither`; `<Leither root>/leither-service.log` |
+
+To configure only Leither's startup without changing LifeDrive files:
+
+```bash
+npx --yes @inoku/lifedrive --leither-service --leither-root /path/to/leither
+```
+
+Run this as the node's normal user, not with `sudo npx`. It can enable an already running service installed by this package without restarting it. A process started manually or by another service manager is left untouched: keep that manager, or stop it in a maintenance window and disable its old boot registration before adopting the package's service. A service definition with different settings or another node/account is never overwritten. Normal LifeDrive upgrades do not change or restart Leither's service. Systems without systemd can supply a running node through their own manager and use `--no-install-leither`.
+
+The npm package contains the versioned installer, checksum, and LifeDrive bundle. After npm supplies the package, LifeDrive's files do not depend on GitHub's release-asset network. Installing a missing Leither runtime additionally needs access to `vzhan.cn`. Its official distribution currently uses HTTP with a same-source checksum; that checksum detects corrupt downloads and is not an authenticated signature. If npm is unavailable, use the GitHub release bootstrap directly (Node.js is still required):
 
 ```bash
 curl -fLO https://github.com/cfa532/lifedrive-installer/releases/latest/download/lifedrive-install.sh
@@ -44,8 +67,18 @@ Source code and design documentation are maintained separately. No device key, i
 
 This release includes the household identity service for Linux and macOS. Existing installations retain their application MID. An ordinary `--upgrade` installs the service files but does not automatically activate household mode.
 
-Household activation uses the existing Leither node address. Run the matching release with `--upgrade --household`. The helper prepares private local configuration, prints a one-time mobile invitation, and on Linux starts the loopback identity service through systemd (sudo may be requested). No additional public hostname or TLS certificate is required. On iPhone or Android, use Settings → Set up users. Each user starts with an empty personal drive; older files are not imported.
+Household activation uses the existing Leither node address. Run the matching release with `--upgrade --household`. The helper prepares private local configuration and starts the loopback identity service through systemd on Linux or launchd on macOS (sudo may be requested). It prints the one-time mobile invitation after confirming startup. No additional public hostname or TLS certificate is required. On iPhone or Android, use Settings → Set up users. Each user starts with an empty personal drive; older files are not imported.
+
+On macOS, setup installs `/Library/LaunchDaemons/uk.inoku.lifedrive-identity.plist`. The identity service runs as your Leither account, starts at boot, and remains running after Terminal closes or you log out. Leither must also be running for LifeDrive to work. Logs are stored in `<Leither root>/.lifedrive-household/identity.log`. Stop any previously started foreground identity service before activating the daemon. The advanced `--household-config` option continues to print a manual start command for custom configurations.
 
 The shared browser URL remains `http://drive.inoku.uk/?n=<node-id>`. Native identities persist; a paired browser stays signed in until it goes seven days without use. Direct setup requires Leither to enforce private MiMei access and stops if its checks cannot confirm that. See the source deployment notes for the HTTP transport limitations.
 
 Once synchronized, Leither follows new publications of the same application MID. The household browser also loads that published application. Updates to the separate identity-service executable require another npm upgrade and a restart of that service. The installer never restarts Leither. Install mobile application updates separately.
+
+After upgrading on macOS, restart only the identity service:
+
+```bash
+sudo launchctl kickstart -k system/uk.inoku.lifedrive-identity
+sudo launchctl print system/uk.inoku.lifedrive-identity
+curl --fail http://127.0.0.1:4811/health
+```

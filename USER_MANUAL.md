@@ -17,10 +17,11 @@ A LifeDrive node needs:
 
 | Requirement | Notes |
 |---|---|
-| A running Leither node | Linux or macOS. Leither must already be installed and running before LifeDrive is installed. |
+| A Linux or macOS computer | Fresh setup installs Leither if missing, or reuses an existing node. Intel/AMD64 and Apple Silicon/ARM64 are supported. |
 | Node.js 18 or later | Used only to run the installer with `npx`. |
 | `bash`, `curl`, `tar`, and `sha256sum` or `shasum` | Present on most Linux and macOS systems. |
-| The account that runs Leither | Run the installer as that account, **not** as root. On Linux, `sudo` is used once, only to install the LifeDrive identity service. |
+| Your normal user account | If Leither already exists, use its account. Setup uses `sudo` to register the Leither and LifeDrive identity system services; both run as your normal account. |
+| A system service manager | systemd on Linux, launchd on macOS. They start newly installed Leither nodes at boot and recover them after crashes. |
 | The LifeDrive app on your phone | iPhone or Android. The first user is created from a phone. |
 
 LifeDrive never stops or restarts Leither. If more than one Leither node runs on
@@ -33,15 +34,55 @@ the machine, the installer lists them and asks you to choose one with
 
 ### 2.1 Install LifeDrive
 
+On macOS, use Terminal. Both Apple Silicon and Intel Macs use the same npm package and commands as Linux; no separate package name or Homebrew installation is needed. Node.js must already be installed; the package can install Leither for you.
+
 On the node, as the account that runs Leither:
 
 ```bash
 npx --yes @inoku/lifedrive@latest
 ```
 
-The installer confirms that Leither is running, finds its directory, verifies the
-release archive's checksum, installs LifeDrive, publishes the application on the
-node, and runs the terminal setup. Follow its prompts.
+The installer finds an existing running Leither node. If none is running, it
+reuses Leither in the selected directory, current directory, or `PATH`, or
+downloads and verifies the official runtime for your machine. A new node is
+created in `~/.local/share/lifedrive/leither`, initialized with its own private
+keys, and started as a system service with automatic boot startup. Setup waits for Leither's local version
+endpoint, verifies the LifeDrive archive, installs LifeDrive and runs terminal
+setup. Follow its prompts.
+
+To choose another empty directory or start a stopped existing node:
+
+```bash
+npx --yes @inoku/lifedrive@latest --leither-root "/path/to/leither"
+```
+
+Existing Leither files are never replaced. If a directory contains files but no
+Leither executable, setup stops instead of initializing over them. Use
+`--no-install-leither` to require a running node. Upgrades and device-management
+commands always require a running node. An older existing Leither version must
+be upgraded separately to V0.24.11 or newer.
+
+Fresh Leither downloads require access to the [official distribution](http://vzhan.cn/#start.html).
+Port 4800 must be available for a new node. On Linux, inspect startup with
+`systemctl status lifedrive-leither.service` and
+`journalctl -u lifedrive-leither.service`. On macOS, use
+`sudo launchctl print system/uk.inoku.leither` and read
+`<Leither root>/leither-service.log`. The service starts at boot and continues
+after you log out. Run setup as your normal user, not with `sudo npx`; it will
+request sudo only for system service registration and management.
+
+To add boot startup to an existing node without changing LifeDrive files:
+
+```bash
+npx --yes @inoku/lifedrive@latest --leither-service --leither-root "/path/to/leither"
+```
+
+A service already installed by this package is enabled without restarting it.
+If Leither is running manually or under another manager, setup leaves it alone.
+Keep that manager, or stop the node during a maintenance window and disable its
+old boot registration before running the service-only command. Existing service
+definitions with different settings are not overwritten. Regular LifeDrive
+upgrades do not change or restart Leither's service.
 
 If a LifeDrive is already installed on this node, the installer stops and says so.
 Use the upgrade in section 3 instead.
@@ -57,7 +98,7 @@ npx --yes @inoku/lifedrive@latest --upgrade --household
 This keeps what step 2.1 installed and adds users and phones:
 
 1. Creates LifeDrive's private configuration in `<Leither root>/.lifedrive-household/`.
-2. On Linux, installs and starts the `lifedrive-identity` service (this is the one step that uses `sudo`; Leither itself is not restarted). On macOS, it prints the command that starts the service in a terminal; start it before pairing.
+2. Installs and starts the identity service using `sudo`: `lifedrive-identity` through systemd on Linux, or `uk.inoku.lifedrive-identity` through launchd on macOS. Both run under your Leither account. The Mac service starts at boot and continues after Terminal closes or you log out. Leither itself is not restarted and must be running separately. Stop any old foreground identity service before switching to the Mac daemon.
 3. Prints a **setup invitation**: a block of text, followed by
    *"Keep the invitation above private. It expires in ten minutes."*
 
@@ -84,7 +125,7 @@ empty page, or **Settings → Set up users**, opens it again.
 
 | Situation | What to do |
 |---|---|
-| The invitation expired before you pasted it | On the node, stop the identity service (`sudo systemctl stop lifedrive-identity` on Linux) and run the command from 2.2 again for a fresh invitation. |
+| The invitation expired before you pasted it | On the node, stop the identity service (`sudo systemctl stop lifedrive-identity` on Linux, or `sudo launchctl bootout system/uk.inoku.lifedrive-identity` on macOS) and run the command from 2.2 again for a fresh invitation. |
 | You pasted it, but the app lost its connection or was closed | Open the app on **the same phone** and paste **the same invitation** again. A claim that has started can finish after the ten minutes have passed. Do not delete the app or ask for a new invitation: that would abandon the phone's pending key. |
 | Setup says the node already has users | The node has been claimed. Add further devices from **My devices** (section 4), not with a new setup invitation. |
 
@@ -94,6 +135,7 @@ On the node:
 
 ```bash
 systemctl status lifedrive-identity          # Linux: should be "active (running)"
+sudo launchctl print system/uk.inoku.lifedrive-identity  # macOS: should report state = running
 curl -s http://127.0.0.1:4811/health         # should print the service name and node ID
 ```
 
@@ -132,8 +174,17 @@ sudo systemctl restart lifedrive-identity    # Linux
 systemctl status lifedrive-identity          # confirm it is running again
 ```
 
-On macOS, stop the identity service in its terminal and start it again with the
-command printed at installation.
+On macOS:
+
+```bash
+sudo launchctl kickstart -k system/uk.inoku.lifedrive-identity
+sudo launchctl print system/uk.inoku.lifedrive-identity
+curl --fail http://127.0.0.1:4811/health
+```
+
+If startup fails, inspect `<Leither root>/.lifedrive-household/identity.log`.
+Custom configurations installed with `--household-config` still use the manual
+start command printed during installation.
 
 While the service restarts, apps show a connection error for a few seconds and
 retry by themselves. Uploads and backups that were in progress resume.
