@@ -17,11 +17,11 @@ A LifeDrive node needs:
 
 | Requirement | Notes |
 |---|---|
-| A Linux or macOS computer | Fresh setup installs Leither if missing, or reuses an existing node. Intel/AMD64 and Apple Silicon/ARM64 are supported. |
-| Node.js 18 or later | Used only to run the installer with `npx`. |
-| `bash`, `curl`, `tar`, and `sha256sum` or `shasum` | Present on most Linux and macOS systems. |
-| Your normal user account | If Leither already exists, use its account. Setup uses `sudo` to register the Leither and LifeDrive identity system services; both run as your normal account. |
-| A system service manager | systemd on Linux, launchd on macOS. They start newly installed Leither nodes at boot and recover them after crashes. |
+| A Linux, macOS, or Windows computer | Fresh setup installs Leither if missing, or reuses an existing node. Linux/macOS support AMD64 and ARM64; Windows uses the official x64 build. |
+| Node.js 18 or later | Included privately in the Windows and macOS packages. Install it yourself only for the Linux or advanced macOS command-line method. |
+| Platform tools | Linux/macOS use `bash`, `curl`, `tar`, and a SHA-256 tool. Windows uses built-in Windows PowerShell, `tar.exe`, and Windows Firewall tools. |
+| An appropriate account | Linux/macOS use the normal Leither account and request `sudo` only for service registration. Windows setup must run from an Administrator terminal. |
+| A startup manager | systemd on Linux, launchd on macOS, or Task Scheduler on Windows starts the node at boot and recovers it after crashes. |
 | The LifeDrive app on your phone | iPhone or Android. The first user is created from a phone. |
 
 LifeDrive never stops or restarts Leither. If more than one Leither node runs on
@@ -34,19 +34,33 @@ the machine, the installer lists them and asks you to choose one with
 
 ### 2.1 Install LifeDrive
 
-On macOS, use Terminal. Both Apple Silicon and Intel Macs use the same npm package and commands as Linux; no separate package name or Homebrew installation is needed. Node.js must already be installed; the package can install Leither for you.
+For Windows or macOS, open the [latest installer release](https://github.com/cfa532/lifedrive-installer/releases/latest) and download the file for the computer:
 
-On the node, as the account that runs Leither:
+- Windows x64: `LePan-Setup-windows-x64.exe`
+- Mac with Apple silicon: `LePan-Setup-macos-arm64.pkg`
+- Mac with an Intel processor: `LePan-Setup-macos-x64.pkg`
+
+On Windows, open the downloaded setup file and approve the Administrator prompt. On macOS, open the package; it installs **LePan Setup** in Applications and opens a Terminal window. Follow the prompts to choose the storage limit and create the first private mobile invitation. The package carries its own Node.js runtime and does not install or replace Node.js for other applications.
+
+Linux users and experienced Mac users can instead install Node.js 18 or later and use Terminal. On the node, as the account that runs Leither:
 
 ```bash
 npx --yes @inoku/lifedrive@latest
 ```
 
+The same command also remains available from an Administrator Windows Terminal for advanced use. WSL and Git Bash are not required.
+
 The installer finds an existing running Leither node. If none is running, it
 reuses Leither in the selected directory, current directory, or `PATH`, or
 downloads and verifies the official runtime for your machine. A new node is
-created in `~/.local/share/lifedrive/leither`, initialized with its own private
-keys, and started as a system service with automatic boot startup. Setup waits for Leither's local version
+created in `~/.local/share/lifedrive/leither` on Linux/macOS or
+`%ProgramData%\LifeDrive\Leither` on Windows, initialized with its own private
+keys, and prepared for automatic boot startup. Before starting the service,
+setup shows the selected drive's available space and asks for the maximum space
+Leither may use. Press Enter for the 100 GB default, or enter another whole
+number of decimal gigabytes. The limit covers all data stored by that Leither
+node, including LePan; it does not preallocate the space. Setup then starts the
+service, waits for Leither's local version
 endpoint, verifies the LifeDrive archive, installs LifeDrive and runs terminal
 setup. Follow its prompts.
 
@@ -55,6 +69,17 @@ To choose another empty directory or start a stopped existing node:
 ```bash
 npx --yes @inoku/lifedrive@latest --leither-root "/path/to/leither"
 ```
+
+For unattended fresh setup, supply the limit explicitly:
+
+```bash
+npx --yes @inoku/lifedrive@latest --leither-root "/path/to/leither" --storage-max-gb 100
+```
+
+The selected maximum cannot exceed the space currently available on that drive.
+The option applies only when the installer creates a new node. Existing nodes
+and upgrades keep their current limit; an owner can change it later in LePan
+Settings, after which Leither must be restarted.
 
 Existing Leither files are never replaced. If a directory contains files but no
 Leither executable, setup stops instead of initializing over them. Use
@@ -70,6 +95,15 @@ Port 4800 must be available for a new node. On Linux, inspect startup with
 `<Leither root>/leither-service.log`. The service starts at boot and continues
 after you log out. Run setup as your normal user, not with `sudo npx`; it will
 request sudo only for system service registration and management.
+
+On Windows, setup creates the `LifeDrive Leither` and `LifeDrive Identity`
+Scheduled Tasks and an inbound Windows Firewall rule for Leither's configured
+port. The identity control port 4811 stays loopback-only and needs no router or
+firewall opening. Inspect startup with:
+
+```powershell
+Get-ScheduledTask -TaskName "LifeDrive Leither", "LifeDrive Identity"
+```
 
 To add boot startup to an existing node without changing LifeDrive files:
 
@@ -89,6 +123,10 @@ Use the upgrade in section 3 instead.
 
 ### 2.2 Turn on users and mobile setup
 
+Fresh Windows setup already performs this section and prints its invitation. On
+Linux/macOS, or when enabling household users on an existing compatible node,
+run:
+
 Still on the node:
 
 ```bash
@@ -98,7 +136,7 @@ npx --yes @inoku/lifedrive@latest --upgrade --household
 This keeps what step 2.1 installed and adds users and phones:
 
 1. Creates LifeDrive's private configuration in `<Leither root>/.lifedrive-household/`.
-2. Installs and starts the identity service using `sudo`: `lifedrive-identity` through systemd on Linux, or `uk.inoku.lifedrive-identity` through launchd on macOS. Both run under your Leither account. The Mac service starts at boot and continues after Terminal closes or you log out. Leither itself is not restarted and must be running separately. Stop any old foreground identity service before switching to the Mac daemon.
+2. Installs and starts the identity service: `lifedrive-identity` through systemd on Linux, `uk.inoku.lifedrive-identity` through launchd on macOS, or `LifeDrive Identity` through Task Scheduler on Windows. Leither itself is not restarted and must be running separately.
 3. Prints a **setup invitation**: a block of text, followed by
    *"Keep the invitation above private. It expires in ten minutes."*
 
@@ -347,9 +385,9 @@ uploads that have not been committed yet.
 
 | Task | Where |
 |---|---|
-| Install on a node | `npx --yes @inoku/lifedrive@latest`, then `npx --yes @inoku/lifedrive@latest --upgrade --household` |
-| Upgrade a node | `npx --yes @inoku/lifedrive@latest --upgrade`, then `sudo systemctl restart lifedrive-identity` |
-| Check the node | `systemctl status lifedrive-identity` and `curl -s http://127.0.0.1:4811/health` |
+| Install on a node | `npx --yes @inoku/lifedrive@latest`; Linux/macOS then run it with `--upgrade --household` |
+| Upgrade a node | `npx --yes @inoku/lifedrive@latest --upgrade`; restart only identity if the platform installer does not do so |
+| Check the node | Check the platform service/task and open `http://127.0.0.1:4811/health` locally |
 | Create the first user | Phone: **Settings → Set up users → Paste node identity** |
 | Add your own device | Existing device: **My devices → Pair another device**; new device: **Set up users → Choose identity file**; approve the match code |
 | Sign in a browser | Phone: **My devices → Pair a browser**; open the address it shows; **Scan browser QR code** |

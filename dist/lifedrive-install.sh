@@ -12,6 +12,7 @@ LEITHER_SERVICE_ONLY=0
 LEITHER_SERVICE_BOOTSTRAPPED=0
 HOUSEHOLD_CONFIG=""
 HOUSEHOLD_SETUP=0
+STORAGE_MAX_GB="${LIFEDRIVE_STORAGE_MAX_GB:-}"
 setup_command_args=()
 setup_arg_count=0
 operation_count=0
@@ -24,6 +25,7 @@ Installer options:
   --leither-root DIR        Select an existing node or the directory for a new Leither installation.
   --no-install-leither      Require a running Leither node; do not install or start one.
   --leither-service         Set up Leither boot startup only; do not install or change LifeDrive.
+  --storage-max-gb GB       Maximum disk space for a newly installed Leither node (default: 100 GB).
   --release-base URL        Alternate GitHub Release asset base URL.
   --upgrade                 Upgrade an existing LifeDrive without changing device authorization.
   --household              Prepare mobile household setup using the existing node address.
@@ -60,6 +62,11 @@ while (( $# )); do
       shift
       [[ $# -gt 0 && -n "$1" && "$1" != --* ]] || { echo "--leither-root requires a directory" >&2; exit 2; }
       LEITHER_WORKDIR="$1"
+      ;;
+    --storage-max-gb)
+      shift
+      [[ $# -gt 0 && -n "$1" && "$1" != --* ]] || { echo "--storage-max-gb requires a whole number of gigabytes" >&2; exit 2; }
+      STORAGE_MAX_GB="$1"
       ;;
     --release-base)
       shift
@@ -100,12 +107,22 @@ if (( operation_count > 1 )); then
   echo "Choose only one of --upgrade, --add-device, --list-devices, or --revoke-device." >&2
   exit 2
 fi
-if (( LEITHER_SERVICE_ONLY )) && { (( ! INSTALL_LEITHER || operation_count || HOUSEHOLD_SETUP || setup_arg_count )) || [[ -n "$HOUSEHOLD_CONFIG" ]]; }; then
+if (( LEITHER_SERVICE_ONLY )) && { (( ! INSTALL_LEITHER || operation_count || HOUSEHOLD_SETUP || setup_arg_count )) || [[ -n "$HOUSEHOLD_CONFIG" || -n "$STORAGE_MAX_GB" ]]; }; then
   echo "Use --leither-service with only --leither-root and installer source options." >&2
   exit 2
 fi
 if (( HOUSEHOLD_SETUP )) && { [[ -n "$HOUSEHOLD_CONFIG" ]] || (( MANAGEMENT_ONLY )); }; then
   echo "Use --household separately from --household-config and device-management options." >&2
+  exit 2
+fi
+valid_storage_gb() {
+  local value="$1"
+  [[ "$value" =~ ^[1-9][0-9]*$ ]] || return 1
+  (( ${#value} < 11 )) && return 0
+  (( ${#value} == 11 )) && (( 10#$value <= 18446744073 ))
+}
+if [[ -n "$STORAGE_MAX_GB" ]] && ! valid_storage_gb "$STORAGE_MAX_GB"; then
+  echo "Leither storage must be a positive whole number of gigabytes." >&2
   exit 2
 fi
 
@@ -138,6 +155,93 @@ leither_version() {
       process.exit(1);
     }
   ' "$version_json"
+}
+
+available_storage_gb() {
+  # POSIX df reports 1024-byte blocks with -k. The result is informational and
+  # also prevents a fresh node from receiving a quota the selected disk cannot
+  # currently hold. Failure to inspect the filesystem does not invent a value.
+  LC_ALL=C df -Pk "$LEITHER_WORKDIR" 2>/dev/null | awk 'NR == 2 && $4 ~ /^[0-9]+$/ { print int(($4 * 1024) / 1000000000) }'
+}
+
+configure_new_node_storage() {
+  local available_gb selected_gb default_gb=100 config
+  config="$LEITHER_WORKDIR/ds/config"
+  [[ -f "$config" && ! -L "$config" ]] || {
+    echo "Leither initialization did not create a regular datastore configuration at $config." >&2
+    return 1
+  }
+  available_gb=$(available_storage_gb)
+  echo
+  echo "Choose the maximum hard-drive space Leither may use for LePan and any other data on this node."
+  if [[ "$available_gb" =~ ^[0-9]+$ ]]; then
+    echo "Available now on the selected drive: ${available_gb} GB."
+  fi
+  if [[ -n "$STORAGE_MAX_GB" ]]; then
+    selected_gb="$STORAGE_MAX_GB"
+    echo "Leither storage limit: ${selected_gb} GB."
+  elif [[ -t 0 ]]; then
+    while true; do
+      read -r -p "Maximum Leither storage in GB [$default_gb]: " selected_gb
+      selected_gb="${selected_gb:-$default_gb}"
+      if ! valid_storage_gb "$selected_gb"; then
+        echo "Enter a positive whole number of gigabytes." >&2
+        continue
+      fi
+      if [[ "$available_gb" =~ ^[0-9]+$ ]] && (( selected_gb > available_gb )); then
+        echo "That exceeds the ${available_gb} GB currently available on this drive. Choose a smaller limit." >&2
+        continue
+      fi
+      break
+    done
+  else
+    selected_gb="$default_gb"
+    echo "No interactive terminal was detected; using the ${default_gb} GB default."
+  fi
+  if [[ "$available_gb" =~ ^[0-9]+$ ]] && (( selected_gb > available_gb )); then
+    echo "The selected limit (${selected_gb} GB) exceeds the ${available_gb} GB currently available on this drive." >&2
+    echo "Free space or rerun setup with --storage-max-gb set to a smaller value." >&2
+    return 1
+  fi
+  node - "$config" "${selected_gb}GB" <<'NODE'
+const fs = require("node:fs"), path = require("node:path");
+const file = process.argv[2], desired = process.argv[3];
+const info = fs.lstatSync(file);
+if (!info.isFile() || info.isSymbolicLink()) throw new Error("Leither datastore configuration is not a regular file");
+const source = fs.readFileSync(file, "utf8");
+const parsed = JSON.parse(source);
+const current = parsed?.Datastore?.StorageMax;
+if (typeof current !== "string") throw new Error("Leither datastore StorageMax is not a string");
+const key = '"StorageMax"';
+const keyIndex = source.indexOf(key);
+if (keyIndex < 0 || source.indexOf(key, keyIndex + key.length) >= 0) throw new Error("Leither datastore StorageMax must occur exactly once");
+const currentJSON = JSON.stringify(current), nextJSON = JSON.stringify(desired);
+const valueIndex = source.indexOf(currentJSON, keyIndex + key.length);
+if (valueIndex < 0) throw new Error("Leither datastore StorageMax value could not be located");
+const next = source.slice(0, valueIndex) + nextJSON + source.slice(valueIndex + currentJSON.length);
+const verified = JSON.parse(next);
+if (verified?.Datastore?.StorageMax !== desired) throw new Error("updated Leither datastore configuration did not validate");
+const temporary = `${file}.lifedrive-install-${process.pid}`;
+let descriptor;
+try {
+  descriptor = fs.openSync(temporary, "wx", info.mode & 0o777);
+  fs.writeFileSync(descriptor, next, "utf8");
+  fs.fsyncSync(descriptor);
+  fs.closeSync(descriptor);
+  descriptor = undefined;
+  fs.renameSync(temporary, file);
+  try {
+    const directory = fs.openSync(path.dirname(file), "r");
+    fs.fsyncSync(directory);
+    fs.closeSync(directory);
+  } catch {}
+} catch (error) {
+  if (descriptor !== undefined) fs.closeSync(descriptor);
+  try { fs.unlinkSync(temporary); } catch {}
+  throw error;
+}
+NODE
+  echo "Leither storage limit saved as ${selected_gb} GB."
 }
 
 install_leither_binary() (
@@ -356,7 +460,7 @@ bootstrap_leither() {
       LEITHER_WORKDIR="$HOME/.local/share/lifedrive/leither"
     fi
   fi
-  local new_node=0 node_version node_port
+  local new_node=0 node_version node_port storage_pending
   if [[ ! -e "$LEITHER_WORKDIR/Leither" && ! -L "$LEITHER_WORKDIR/Leither" ]]; then
     if [[ -d "$LEITHER_WORKDIR" && -n "$(ls -A "$LEITHER_WORKDIR")" ]]; then
       echo "Leither is missing, but $LEITHER_WORKDIR contains existing files. Choose an empty --leither-root; nothing was replaced." >&2
@@ -369,6 +473,11 @@ bootstrap_leither() {
     exit 1
   fi
   LEITHER_WORKDIR=$(cd "$LEITHER_WORKDIR" && pwd -P)
+  storage_pending="$LEITHER_WORKDIR/.lifedrive-storage-pending"
+  # A failed quota choice or configuration write must be safely retryable. The
+  # marker identifies only nodes this installer itself began creating; an
+  # arbitrary stopped existing node is never treated as fresh.
+  if [[ -f "$storage_pending" && ! -L "$storage_pending" ]]; then new_node=1; fi
   # Validate the selected node's port and check availability before starting it.
   # The process and HTTP version are checked again after startup.
   node_port=$(node -e '
@@ -385,13 +494,25 @@ try {
 } catch (error) { console.error(error.message); process.exitCode = 1; }
   ' "$LEITHER_WORKDIR") || exit 1
   if (( new_node )); then
-    install_leither_binary
-    echo "Initializing the new private Leither node at $LEITHER_WORKDIR..."
-    (umask 077; cd "$LEITHER_WORKDIR" && ./Leither init) || { echo "Leither initialization failed; its files were retained at $LEITHER_WORKDIR." >&2; exit 1; }
+    if [[ ! -x "$LEITHER_WORKDIR/Leither" ]]; then install_leither_binary; fi
+    if [[ ! -e "$storage_pending" ]]; then (umask 077; : > "$storage_pending"); fi
+    if [[ ! -s "$LEITHER_WORKDIR/SystemVars.json" && ! -s "$LEITHER_WORKDIR/hostkey.cfg" && ! -e "$LEITHER_WORKDIR/ds/config" ]]; then
+      echo "Initializing the new private Leither node at $LEITHER_WORKDIR..."
+      (umask 077; cd "$LEITHER_WORKDIR" && ./Leither init) || { echo "Leither initialization failed; its files were retained at $LEITHER_WORKDIR." >&2; exit 1; }
+    fi
     if [[ ! -s "$LEITHER_WORKDIR/SystemVars.json" || ! -s "$LEITHER_WORKDIR/hostkey.cfg" ]]; then
       echo "Leither initialization did not create its configuration and node key. Inspect $LEITHER_WORKDIR before retrying." >&2
       exit 1
     fi
+    configure_new_node_storage || {
+      echo "Leither storage setup failed; the initialized node was retained but not started." >&2
+      exit 1
+    }
+    rm -f -- "$storage_pending" || { echo "Could not finish the new-node storage configuration." >&2; exit 1; }
+  elif [[ -n "$STORAGE_MAX_GB" ]]; then
+    echo "--storage-max-gb is only valid when this installer creates a new Leither node." >&2
+    echo "Change an existing node's limit from LePan Settings instead." >&2
+    exit 2
   fi
   node_version=$(leither_version "$LEITHER_WORKDIR") || exit 1
   echo "Installing the Leither system service at $LEITHER_WORKDIR..."
@@ -418,6 +539,11 @@ running_pids=$(find_leither_pids)
 if [[ -z "$running_pids" ]]; then
   bootstrap_leither
   running_pids=$(find_leither_pids)
+fi
+if [[ -n "$STORAGE_MAX_GB" ]] && (( ! LEITHER_SERVICE_BOOTSTRAPPED )); then
+  echo "--storage-max-gb is only valid when this installer creates a new Leither node." >&2
+  echo "Change an existing node's limit from LePan Settings instead." >&2
+  exit 2
 fi
 
 running_roots=()
