@@ -2,13 +2,13 @@
 
 This public repository contains versioned LifeDrive installation assets built from the private LifeAlbum source repository.
 
-For an ordinary Windows or macOS installation, download the matching package from the [latest release](https://github.com/cfa532/lifedrive-installer/releases/latest):
+For an ordinary Windows or macOS installation, download the matching package from LePan's Cloudflare-backed download URLs:
 
-- **Windows 10/11 or Windows Server (x64):** [LePan-Setup-windows-x64.exe](https://github.com/cfa532/lifedrive-installer/releases/latest/download/LePan-Setup-windows-x64.exe)
-- **Mac with Apple silicon:** [LePan-Setup-macos-arm64.pkg](https://github.com/cfa532/lifedrive-installer/releases/latest/download/LePan-Setup-macos-arm64.pkg)
-- **Mac with an Intel processor:** [LePan-Setup-macos-x64.pkg](https://github.com/cfa532/lifedrive-installer/releases/latest/download/LePan-Setup-macos-x64.pkg)
+- **Windows 10/11 or Windows Server (x64):** [LePan-Setup-windows-x64.exe](https://lepan.org/download/LePan-Setup-windows-x64.exe)
+- **Mac with Apple silicon:** [LePan-Setup-macos-arm64.pkg](https://lepan.org/download/LePan-Setup-macos-arm64.pkg)
+- **Mac with an Intel processor:** [LePan-Setup-macos-x64.pkg](https://lepan.org/download/LePan-Setup-macos-x64.pkg)
 
-The native packages contain a private Node.js runtime used only by LePan Setup. They do not install Node.js system-wide or replace an existing Node.js installation. Windows asks for Administrator approval. macOS installs **LePan Setup** in Applications, opens Terminal, and asks for an administrator password only when registering the background services. Follow the on-screen prompts to choose storage and create the first mobile invitation.
+The native packages contain a private Node.js runtime used only by LePan Setup. They do not install Node.js system-wide or replace an existing Node.js installation. Windows asks for Administrator approval. macOS installs **LePan Setup** in Applications, opens Terminal, and asks for an administrator password when registering background services and allowing Leither through the Application Firewall. Follow the on-screen prompts to choose storage and create the first mobile invitation.
 
 **New to LifeDrive?** Read the [user manual](USER_MANUAL.md): installing and upgrading a node, users and devices, and what to do when a device or an identity is lost.
 
@@ -99,7 +99,11 @@ On Windows, Task Scheduler entries named `LifeDrive Leither` and
 to the selected Leither root. Setup also adds a Windows Firewall rule for the
 configured Leither port. The loopback identity port 4811 is not opened publicly.
 
-On macOS, setup installs `/Library/LaunchDaemons/uk.inoku.lifedrive-identity.plist`. The identity service runs as your Leither account, starts at boot, and remains running after Terminal closes or you log out. Leither must also be running for LifeDrive to work. Logs are stored in `<Leither root>/.lifedrive-household/identity.log`. Stop any previously started foreground identity service before activating the daemon. The advanced `--household-config` option continues to print a manual start command for custom configurations.
+On macOS, setup registers the selected Leither executable with the Application
+Firewall, allows incoming connections, and verifies the rule. The system's
+**Block all incoming connections** setting and managed firewall policy can still
+override that application rule. Setup also installs
+`/Library/LaunchDaemons/uk.inoku.lifedrive-identity.plist`. The identity service runs as your Leither account, starts at boot, and remains running after Terminal closes or you log out. Leither must also be running for LifeDrive to work. Logs are stored in `<Leither root>/.lifedrive-household/identity.log`. Stop any previously started foreground identity service before activating the daemon. The advanced `--household-config` option continues to print a manual start command for custom configurations. Router port forwarding remains a separate manual step.
 
 The shared browser URL remains `http://drive.lepan.org/?n=<node-id>`. Native identities persist; a paired browser stays signed in until it goes seven days without use. Direct setup requires Leither to enforce private MiMei access and stops if its checks cannot confirm that. See the source deployment notes for the HTTP transport limitations.
 

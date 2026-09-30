@@ -19,8 +19,8 @@ A LifeDrive node needs:
 |---|---|
 | A Linux, macOS, or Windows computer | Fresh setup installs Leither if missing, or reuses an existing node. Linux/macOS support AMD64 and ARM64; Windows uses the official x64 build. |
 | Node.js 18 or later | Included privately in the Windows and macOS packages. Install it yourself only for the Linux or advanced macOS command-line method. |
-| Platform tools | Linux/macOS use `bash`, `curl`, `tar`, and a SHA-256 tool. Windows uses built-in Windows PowerShell, `tar.exe`, and Windows Firewall tools. |
-| An appropriate account | Linux/macOS use the normal Leither account and request `sudo` only for service registration. Windows setup must run from an Administrator terminal. |
+| Platform tools | Linux/macOS use `bash`, `curl`, `tar`, and a SHA-256 tool. macOS also uses its built-in Application Firewall tool. Windows uses built-in Windows PowerShell, `tar.exe`, and Windows Firewall tools. |
+| An appropriate account | Linux/macOS use the normal Leither account. macOS requests `sudo` for service and firewall registration. Windows setup must run from an Administrator terminal. |
 | A startup manager | systemd on Linux, launchd on macOS, or Task Scheduler on Windows starts the node at boot and recovers it after crashes. |
 | The LifeDrive app on your phone | iPhone or Android. The first user is created from a phone. |
 
@@ -34,11 +34,11 @@ the machine, the installer lists them and asks you to choose one with
 
 ### 2.1 Install LifeDrive
 
-For Windows or macOS, open the [latest installer release](https://github.com/cfa532/lifedrive-installer/releases/latest) and download the file for the computer:
+For Windows or macOS, download the installer for the computer:
 
-- Windows x64: `LePan-Setup-windows-x64.exe`
-- Mac with Apple silicon: `LePan-Setup-macos-arm64.pkg`
-- Mac with an Intel processor: `LePan-Setup-macos-x64.pkg`
+- Windows x64: [LePan-Setup-windows-x64.exe](https://lepan.org/download/LePan-Setup-windows-x64.exe)
+- Mac with Apple silicon: [LePan-Setup-macos-arm64.pkg](https://lepan.org/download/LePan-Setup-macos-arm64.pkg)
+- Mac with an Intel processor: [LePan-Setup-macos-x64.pkg](https://lepan.org/download/LePan-Setup-macos-x64.pkg)
 
 On Windows, open the downloaded setup file and approve the Administrator prompt. On macOS, open the package; it installs **LePan Setup** in Applications and opens a Terminal window. Follow the prompts to choose the storage limit and create the first private mobile invitation. The package carries its own Node.js runtime and does not install or replace Node.js for other applications.
 
@@ -94,7 +94,10 @@ Port 4800 must be available for a new node. On Linux, inspect startup with
 `sudo launchctl print system/uk.inoku.leither` and read
 `<Leither root>/leither-service.log`. The service starts at boot and continues
 after you log out. Run setup as your normal user, not with `sudo npx`; it will
-request sudo only for system service registration and management.
+request sudo for system service and macOS Application Firewall registration.
+Setup adds Leither to the allowed incoming applications and verifies the rule.
+The macOS **Block all incoming connections** option or a managed policy can still
+override it. Router port forwarding remains a separate manual step.
 
 On Windows, setup creates the `LifeDrive Leither` and `LifeDrive Identity`
 Scheduled Tasks and an inbound Windows Firewall rule for Leither's configured

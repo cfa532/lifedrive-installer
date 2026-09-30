@@ -443,6 +443,62 @@ NODE
   fi
 )
 
+configure_macos_leither_firewall() {
+  [[ "$(uname -s)" == Darwin ]] || return 0
+  local firewall=/usr/libexec/ApplicationFirewall/socketfilterfw
+  local leither_binary firewall_apps firewall_state block_all_state
+  [[ -x "$firewall" ]] || {
+    echo "LePan setup could not find the macOS Application Firewall tool at $firewall." >&2
+    return 1
+  }
+  command -v sudo >/dev/null 2>&1 || {
+    echo "LePan setup requires sudo to allow Leither through the macOS Application Firewall." >&2
+    return 1
+  }
+  leither_binary=$(node -e 'process.stdout.write(require("node:fs").realpathSync(process.argv[1]));' "$LEITHER_WORKDIR/Leither") || {
+    echo "LePan setup could not resolve the installed Leither executable." >&2
+    return 1
+  }
+  [[ "$leither_binary" == /* && -x "$leither_binary" ]] || {
+    echo "LePan setup could not access the installed Leither executable at $leither_binary." >&2
+    return 1
+  }
+
+  echo "Allowing Leither through the macOS Application Firewall..."
+  firewall_apps=$("$firewall" --listapps) || {
+    echo "LePan setup could not read the macOS Application Firewall rules." >&2
+    return 1
+  }
+  if [[ "$firewall_apps" != *"$leither_binary"* ]]; then
+    sudo "$firewall" --add "$leither_binary" || {
+      echo "LePan setup could not add Leither to the macOS Application Firewall." >&2
+      return 1
+    }
+  fi
+  sudo "$firewall" --unblockapp "$leither_binary" || {
+    echo "LePan setup could not allow incoming connections to Leither in the macOS Application Firewall." >&2
+    return 1
+  }
+
+  firewall_apps=$("$firewall" --listapps) || return 1
+  [[ "$firewall_apps" == *"$leither_binary"* ]] || {
+    echo "LePan setup could not verify Leither in the macOS Application Firewall rules." >&2
+    return 1
+  }
+  firewall_state=$("$firewall" --getappblocked "$leither_binary") || return 1
+  [[ "$firewall_state" == *"is permitted"* ]] || {
+    echo "The macOS Application Firewall still reports Leither as blocked." >&2
+    return 1
+  }
+  echo "macOS Application Firewall allows incoming connections to Leither."
+
+  block_all_state=$("$firewall" --getblockall 2>/dev/null || true)
+  if [[ "$block_all_state" == *"enabled"* ]]; then
+    echo "Warning: macOS is configured to block all incoming connections." >&2
+    echo "Disable that setting before using LePan from another device." >&2
+  fi
+}
+
 bootstrap_leither() {
   if (( ! INSTALL_LEITHER || UPGRADE_ONLY || MANAGEMENT_ONLY )); then
     echo "LifeDrive setup requires a running Leither node for this operation." >&2
@@ -630,6 +686,7 @@ leither_version "$LEITHER_WORKDIR" >/dev/null || exit 1
 
 if (( LEITHER_SERVICE_ONLY )); then
   if (( ! LEITHER_SERVICE_BOOTSTRAPPED )); then configure_leither_service running; fi
+  configure_macos_leither_firewall
   echo "Leither system service setup is complete. LifeDrive application files were not changed."
   exit 0
 fi
@@ -690,6 +747,8 @@ if [[ ! -x "$INSTALL_TEMP/bundle/lifeDrive/lifeDrive-setup.sh" || ! -f "$INSTALL
   echo "LifeDrive release verification failed; required files are missing." >&2
   exit 1
 fi
+
+if (( ! MANAGEMENT_ONLY )); then configure_macos_leither_firewall; fi
 
 if (( MANAGEMENT_ONLY )); then
   export LIFEDRIVE_WORKDIR="$LEITHER_WORKDIR"
