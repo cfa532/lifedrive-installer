@@ -821,11 +821,7 @@ if [[ -n "$HOUSEHOLD_CONFIG" ]]; then
   exit 0
 fi
 if [[ -s "$LEITHER_WORKDIR/lifeDrive.households.json" ]]; then
-  echo "LifeDrive application and identity-service files updated. Household users and keys were preserved."
-  echo "Restart only the LifeDrive identity service through its service manager to load the new binary."
-  if [[ "$(uname -s)" == Darwin && -f /Library/LaunchDaemons/uk.inoku.lifedrive-identity.plist ]]; then
-    echo "macOS: sudo launchctl kickstart -k system/uk.inoku.lifedrive-identity"
-  fi
+  /bin/bash "$LEITHER_WORKDIR/lifeDrive/lifeDrive-upgrade-household.sh"
   exit 0
 fi
 setup_command=("$LEITHER_WORKDIR/lifeDrive/lifeDrive-setup.sh")
