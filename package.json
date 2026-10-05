@@ -1,6 +1,6 @@
 {
   "name": "@inoku/lifedrive",
-  "version": "0.7.55",
+  "version": "0.7.56",
   "description": "Install LifeDrive and its Leither runtime on Linux, macOS, or Windows",
   "os": [
     "linux",

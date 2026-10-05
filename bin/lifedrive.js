@@ -60,11 +60,11 @@ function main() {
   }
 
   if (process.platform !== "linux" && process.platform !== "darwin") {
-    throw new Error("LifeDrive setup supports native Linux, macOS, and x64 Windows Leither servers.");
+    throw new Error("LePan setup supports native Linux, macOS, and x64 Windows Leither servers.");
   }
   const installerPath = path.join(distributionDirectory, "lifedrive-install.sh");
   if (!fs.existsSync("/bin/bash")) {
-    throw new Error("LifeDrive setup requires /bin/bash.");
+    throw new Error("LePan setup requires /bin/bash.");
   }
   if (![installerPath, bundlePath, checksumPath].every(candidate => fs.existsSync(candidate))) {
     throw new Error("The npm package is incomplete. Reinstall @inoku/lifedrive and try again.");
@@ -86,6 +86,6 @@ function main() {
 try {
   main();
 } catch (error) {
-  process.stderr.write(`LifeDrive installer stopped: ${error.message}\n`);
+  process.stderr.write(`LePan installer stopped: ${error.message}\n`);
   process.exitCode = 1;
 }

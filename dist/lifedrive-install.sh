@@ -24,10 +24,10 @@ Usage: lifedrive-install.sh [installer options] [setup options]
 Installer options:
   --leither-root DIR        Select an existing node or the directory for a new Leither installation.
   --no-install-leither      Require a running Leither node; do not install or start one.
-  --leither-service         Set up Leither boot startup only; do not install or change LifeDrive.
+  --leither-service         Set up Leither boot startup only; do not install or change LePan.
   --storage-max-gb GB       Maximum disk space for a newly installed Leither node (default: 100 GB).
   --release-base URL        Alternate GitHub Release asset base URL.
-  --upgrade                 Upgrade an existing LifeDrive without changing device authorization.
+  --upgrade                 Upgrade an existing LePan without changing device authorization.
   --household              Prepare mobile household setup using the existing node address.
   --household-config FILE   Install mobile-led household setup using a private service configuration.
 
@@ -127,7 +127,7 @@ if [[ -n "$STORAGE_MAX_GB" ]] && ! valid_storage_gb "$STORAGE_MAX_GB"; then
 fi
 
 for required in node curl tar; do
-  command -v "$required" >/dev/null 2>&1 || { echo "LifeDrive installation requires $required." >&2; exit 1; }
+  command -v "$required" >/dev/null 2>&1 || { echo "LePan installation requires $required." >&2; exit 1; }
 done
 
 find_leither_pids() {
@@ -151,7 +151,7 @@ leither_version() {
       if (major === 0 && (minor < 24 || (minor === 24 && patch < 11))) throw new Error("too old");
       process.stdout.write(version);
     } catch {
-      console.error("LifeDrive requires Leither V0.24.11 or newer. Upgrade Leither separately; existing nodes are never overwritten.");
+      console.error("LePan requires Leither V0.24.11 or newer. Upgrade Leither separately; existing nodes are never overwritten.");
       process.exit(1);
     }
   ' "$version_json"
@@ -501,7 +501,7 @@ configure_macos_leither_firewall() {
 
 bootstrap_leither() {
   if (( ! INSTALL_LEITHER || UPGRADE_ONLY || MANAGEMENT_ONLY )); then
-    echo "LifeDrive setup requires a running Leither node for this operation." >&2
+    echo "LePan setup requires a running Leither node for this operation." >&2
     echo "Start the existing node, or run a fresh installation without --upgrade or device-management options." >&2
     exit 1
   fi
@@ -588,7 +588,7 @@ try {
     echo "Linux: journalctl -u lifedrive-leither.service. macOS: $LEITHER_WORKDIR/leither-service.log." >&2
     exit 1
   fi
-  echo "Leither V$node_version is ready on port $node_port. Continuing LifeDrive installation."
+  echo "Leither V$node_version is ready on port $node_port. Continuing LePan installation."
 }
 
 running_pids=$(find_leither_pids)
@@ -648,14 +648,14 @@ while IFS= read -r leither_pid; do
 done <<< "$running_pids"
 
 if (( ${#running_roots[@]} == 0 )); then
-  echo "LifeDrive installation stopped: Leither is running, but its root directory could not be determined." >&2
+  echo "LePan installation stopped: Leither is running, but its root directory could not be determined." >&2
   echo "Ensure the account running setup can inspect the Leither process." >&2
   exit 1
 fi
 
 if [[ -n "$LEITHER_WORKDIR" ]]; then
   if [[ ! -d "$LEITHER_WORKDIR" ]]; then
-    echo "LifeDrive installation stopped: $LEITHER_WORKDIR is not a directory." >&2
+    echo "LePan installation stopped: $LEITHER_WORKDIR is not a directory." >&2
     exit 1
   fi
   requested_root=$(cd "$LEITHER_WORKDIR" && pwd -P)
@@ -664,21 +664,21 @@ if [[ -n "$LEITHER_WORKDIR" ]]; then
     if [[ "$known_root" == "$requested_root" ]]; then root_is_running=1; break; fi
   done
   if (( ! root_is_running )); then
-    echo "LifeDrive installation stopped: no running Leither service uses $requested_root." >&2
+    echo "LePan installation stopped: no running Leither service uses $requested_root." >&2
     exit 1
   fi
   LEITHER_WORKDIR="$requested_root"
 elif (( ${#running_roots[@]} == 1 )); then
   LEITHER_WORKDIR="${running_roots[0]}"
 else
-  echo "LifeDrive installation stopped: more than one Leither service is running." >&2
+  echo "LePan installation stopped: more than one Leither service is running." >&2
   printf '  %s\n' "${running_roots[@]}" >&2
   echo "Rerun with --leither-root and one of the directories above." >&2
   exit 1
 fi
 
 if [[ ! -x "$LEITHER_WORKDIR/Leither" ]]; then
-  echo "LifeDrive installation stopped: the running Leither executable is not accessible at $LEITHER_WORKDIR/Leither." >&2
+  echo "LePan installation stopped: the running Leither executable is not accessible at $LEITHER_WORKDIR/Leither." >&2
   exit 1
 fi
 echo "Found running Leither service at $LEITHER_WORKDIR"
@@ -687,28 +687,28 @@ leither_version "$LEITHER_WORKDIR" >/dev/null || exit 1
 if (( LEITHER_SERVICE_ONLY )); then
   if (( ! LEITHER_SERVICE_BOOTSTRAPPED )); then configure_leither_service running; fi
   configure_macos_leither_firewall
-  echo "Leither system service setup is complete. LifeDrive application files were not changed."
+  echo "Leither system service setup is complete. LePan application files were not changed."
   exit 0
 fi
 
 if [[ -s "$LEITHER_WORKDIR/lifeDrive.owner" && "$(sed -n '1p' "$LEITHER_WORKDIR/lifeDrive.owner")" != "lifedrive-key-auth-v1" ]]; then
-  echo "LifeDrive installation stopped: the existing prototype uses retired password-owner state." >&2
-  echo "This key-auth release intentionally requires a fresh LifeDrive owner state." >&2
+  echo "LePan installation stopped: the existing prototype uses retired password-owner state." >&2
+  echo "This key-auth release intentionally requires a fresh LePan owner state." >&2
   exit 1
 fi
 if [[ -s "$LEITHER_WORKDIR/lifeDrive.owner" && -z "$HOUSEHOLD_CONFIG" ]] && (( ! UPGRADE_ONLY && ! MANAGEMENT_ONLY )); then
-  echo "LifeDrive installation stopped: an initialized LifeDrive already exists at $LEITHER_WORKDIR." >&2
+  echo "LePan installation stopped: an initialized LePan already exists at $LEITHER_WORKDIR." >&2
   echo "Use --upgrade for application files or --add-device for another browser." >&2
   exit 1
 fi
 
 if (( UPGRADE_ONLY )); then
   if [[ ! -d "$LEITHER_WORKDIR/lifeDrive" ]] || { [[ ! -s "$LEITHER_WORKDIR/lifeDrive.owner" ]] && [[ ! -s "$LEITHER_WORKDIR/lifeDrive.households.json" ]]; }; then
-    echo "LifeDrive upgrade stopped: no complete existing installation was found at $LEITHER_WORKDIR." >&2
+    echo "LePan upgrade stopped: no complete existing installation was found at $LEITHER_WORKDIR." >&2
     echo "Install it first with: npx --yes @inoku/lifedrive@latest" >&2
     exit 1
   fi
-  echo "Existing LifeDrive installation found. Its device keys, address, and drive data will be preserved."
+  echo "Existing LePan installation found. Its device keys, address, and drive data will be preserved."
 fi
 
 INSTALL_TEMP=$(mktemp -d "${TMPDIR:-/tmp}/lifedrive-install.XXXXXX")
@@ -720,9 +720,9 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 if [[ "$RELEASE_BASE" == file://* ]]; then
-  echo "Loading the LifeDrive release included with the npm package..."
+  echo "Loading the LePan release included with the npm package..."
 else
-  echo "Downloading the latest LifeDrive release from GitHub..."
+  echo "Downloading the latest LePan release from GitHub..."
 fi
 curl -fsSL --retry 3 --connect-timeout 20 -o "$INSTALL_TEMP/$ARCHIVE_NAME" "$RELEASE_BASE/$ARCHIVE_NAME"
 curl -fsSL --retry 3 --connect-timeout 20 -o "$INSTALL_TEMP/$CHECKSUM_NAME" "$RELEASE_BASE/$CHECKSUM_NAME"
@@ -733,18 +733,18 @@ if command -v sha256sum >/dev/null 2>&1; then
 elif command -v shasum >/dev/null 2>&1; then
   actual_checksum=$(shasum -a 256 "$INSTALL_TEMP/$ARCHIVE_NAME" | awk '{print $1}')
 else
-  echo "LifeDrive installation requires sha256sum or shasum." >&2
+  echo "LePan installation requires sha256sum or shasum." >&2
   exit 1
 fi
 if [[ ! "$expected_checksum" =~ ^[a-fA-F0-9]{64}$ || "$actual_checksum" != "$expected_checksum" ]]; then
-  echo "LifeDrive release verification failed; the downloaded bundle was not installed." >&2
+  echo "LePan release verification failed; the downloaded bundle was not installed." >&2
   exit 1
 fi
 
 mkdir -p "$INSTALL_TEMP/bundle"
 tar -xzf "$INSTALL_TEMP/$ARCHIVE_NAME" -C "$INSTALL_TEMP/bundle"
 if [[ ! -x "$INSTALL_TEMP/bundle/lifeDrive/lifeDrive-setup.sh" || ! -f "$INSTALL_TEMP/bundle/lifeDrive/main.go" ]]; then
-  echo "LifeDrive release verification failed; required files are missing." >&2
+  echo "LePan release verification failed; required files are missing." >&2
   exit 1
 fi
 
@@ -763,7 +763,7 @@ backup_dir="$LEITHER_WORKDIR/deploy-backups/lifedrive-$(date -u +%Y%m%dT%H%M%SZ)
 if [[ -d "$LEITHER_WORKDIR/lifeDrive" ]]; then
   mkdir -p "$backup_dir"
   if [[ -d "$LEITHER_WORKDIR/lifeDrive" ]]; then cp -R "$LEITHER_WORKDIR/lifeDrive" "$backup_dir/"; fi
-  echo "Previous LifeDrive files backed up to $backup_dir"
+  echo "Previous LePan files backed up to $backup_dir"
 fi
 
 mkdir -p "$LEITHER_WORKDIR/lifeDrive"
