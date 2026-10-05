@@ -26,7 +26,7 @@ Windows options:
   --storage-max-gb GB       New node storage maximum (default: 100 GB).
   --no-install-leither      Require an already running Leither node.
   --leither-service         Configure Leither startup only.
-  --upgrade                 Upgrade an existing Windows LifeDrive installation.
+  --upgrade                 Upgrade an existing Windows LePan installation.
   --household               Accepted for parity; Windows uses household mode by default.
 
 Run Windows Terminal or PowerShell as Administrator. Windows setup supports
@@ -72,7 +72,7 @@ function Get-LeitherVersion {
     $normalized = $reported.TrimStart("V")
     $version = $null
     if (-not [Version]::TryParse($normalized, [ref]$version) -or $version -lt [Version]"0.24.11") {
-        throw "LifeDrive requires Leither V0.24.11 or newer. Existing binaries are never replaced."
+        throw "LePan requires Leither V0.24.11 or newer. Existing binaries are never replaced."
     }
     return $version
 }
@@ -252,7 +252,7 @@ function Register-LeitherTask {
         MultipleInstances = "IgnoreNew"
     }
     $settings = New-ScheduledTaskSettingsSet @settingsParameters
-    $definition = New-ScheduledTask -Action $action -Trigger $trigger -Principal $taskPrincipal -Settings $settings -Description "Leither node installed by LifeDrive"
+    $definition = New-ScheduledTask -Action $action -Trigger $trigger -Principal $taskPrincipal -Settings $settings -Description "Leither node installed by LePan"
     Register-ScheduledTask -TaskName $leitherTaskName -InputObject $definition -Force | Out-Null
     if ($StartNow -and (Get-ScheduledTask -TaskName $leitherTaskName).State -ne "Running") {
         Start-ScheduledTask -TaskName $leitherTaskName
@@ -272,7 +272,7 @@ function Ensure-LeitherFirewall {
         }
         Enable-NetFirewallRule -Name $name | Out-Null
     } else {
-        New-NetFirewallRule -Name $name -DisplayName "LifeDrive Leither node" -Direction Inbound -Action Allow -Enabled True -Profile Any -Protocol TCP -LocalPort $Port -Program $program | Out-Null
+        New-NetFirewallRule -Name $name -DisplayName "LePan Leither node" -Direction Inbound -Action Allow -Enabled True -Profile Any -Protocol TCP -LocalPort $Port -Program $program | Out-Null
     }
 }
 
@@ -364,7 +364,7 @@ if (-not $runningAtRoot) { Wait-Leither $root $version $port }
 Write-Host "Leither V$version is ready at $root on port $port."
 
 if ($LeitherService) {
-    Write-Host "Leither startup and firewall configuration are complete. LifeDrive files were not changed."
+    Write-Host "Leither startup and firewall configuration are complete. LePan files were not changed."
     return
 }
 
@@ -376,21 +376,21 @@ $config = Join-Path $root ".lifedrive-household\identity.json"
 $routes = Join-Path $root "lifeDrive.households.json"
 if ($Upgrade) {
     if (-not (Test-Path -LiteralPath $config -PathType Leaf)) {
-        throw "LifeDrive upgrade stopped: no Windows household installation was found at $root."
+        throw "LePan upgrade stopped: no Windows household installation was found at $root."
     }
 } else {
     if (Test-Path -LiteralPath (Join-Path $root "lifeDrive.owner") -PathType Leaf) {
         throw "This node uses the legacy browser-owner setup, which Windows does not migrate automatically. Its files were left unchanged."
     }
     if (Test-Path -LiteralPath $routes -PathType Leaf) {
-        throw "An initialized LifeDrive household already exists. Rerun with --upgrade."
+        throw "An initialized LePan household already exists. Rerun with --upgrade."
     }
 }
 
 $expectedChecksum = ((Get-Content -LiteralPath $checksumFile -Raw).Trim() -split "\s+")[0].ToLowerInvariant()
 $actualChecksum = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
 if ($expectedChecksum -notmatch '^[a-f0-9]{64}$' -or $actualChecksum -ne $expectedChecksum) {
-    throw "LifeDrive release verification failed; the package was not installed."
+    throw "LePan release verification failed; the package was not installed."
 }
 
 $installTemp = Join-Path ([IO.Path]::GetTempPath()) ("lifedrive-install-" + [Guid]::NewGuid().ToString("N"))
@@ -399,13 +399,13 @@ New-Item -ItemType Directory -Path $extract -Force | Out-Null
 $identityTaskStopped = $false
 try {
     & tar.exe -xzf $archive -C $extract
-    if ($LASTEXITCODE -ne 0) { throw "LifeDrive release archive could not be extracted." }
+    if ($LASTEXITCODE -ne 0) { throw "LePan release archive could not be extracted." }
     $sourceApp = Join-Path $extract "lifeDrive"
     $sourceIdentity = Join-Path $extract "identity"
     if (-not (Test-Path -LiteralPath (Join-Path $sourceApp "main.go") -PathType Leaf) -or
         -not (Test-Path -LiteralPath (Join-Path $sourceIdentity "lifedrive-identity-windows-amd64.exe") -PathType Leaf) -or
         -not (Test-Path -LiteralPath (Join-Path $sourceIdentity "setup-node.ps1") -PathType Leaf)) {
-        throw "LifeDrive release verification failed; required Windows files are missing."
+        throw "LePan release verification failed; required Windows files are missing."
     }
 
     $identityTask = Get-ScheduledTask -TaskName $identityTaskName -ErrorAction SilentlyContinue
@@ -422,7 +422,7 @@ try {
                 Start-Sleep -Seconds 1
             }
             if ((Get-ScheduledTask -TaskName $identityTaskName).State -eq "Running") {
-                throw "The existing LifeDrive identity task did not stop; installed files were not changed."
+                throw "The existing '$identityTaskName' task did not stop; installed files were not changed."
             }
         }
     }
@@ -432,7 +432,7 @@ try {
         $backupRoot = Join-Path $root ("deploy-backups\lifedrive-" + (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ"))
         New-Item -ItemType Directory -Path $backupRoot -Force | Out-Null
         Copy-Item -LiteralPath $destinationApp -Destination $backupRoot -Recurse
-        Write-Host "Previous LifeDrive files backed up to $backupRoot"
+        Write-Host "Previous LePan files backed up to $backupRoot"
     }
     New-Item -ItemType Directory -Path $destinationApp -Force | Out-Null
     foreach ($obsolete in @("web", "inoku", "index_entry.js", "index.css", "lifeDrive-install-service.sh")) {
@@ -465,7 +465,7 @@ if ($Upgrade) {
         }
         throw
     }
-    Write-Host "LifeDrive Windows upgrade complete. Leither was not restarted."
+    Write-Host "LePan Windows upgrade complete. Leither was not restarted."
     return
 }
 try {
