@@ -17,7 +17,7 @@ The native packages contain a private Node.js runtime used only by LePan Setup. 
 Linux users and experienced Mac users can install Node.js 18 or later and run:
 
 ```bash
-npx --yes @inoku/lifedrive
+npx --yes @inoku/lepan
 ```
 
 The npm package supports Linux and macOS on Apple Silicon/ARM64 and Intel/AMD64, plus native x64 Windows. Run it as your normal user on Linux/macOS or from an Administrator Windows Terminal on Windows. Fresh setup installs and starts Leither when it is missing. WSL, Git Bash, Homebrew, and third-party Windows service wrappers are not required. A fresh Windows node defaults to
@@ -27,7 +27,7 @@ and activates household users during installation.
 To upgrade an existing key-auth installation without changing its authorized devices, public address, or drive data, run:
 
 ```bash
-npx --yes @inoku/lifedrive@latest --upgrade
+npx --yes @inoku/lepan@latest --upgrade
 ```
 
 The installer reuses a running Leither node and finds its directory automatically. If none is running, Linux/macOS fresh setup first looks for Leither in the selected directory, the current directory, or on `PATH`; otherwise it uses `~/.local/share/lifedrive/leither`. Windows uses `%ProgramData%\LifeDrive\Leither` unless `--leither-root` selects another directory. It downloads the matching binary from the [official Leither distribution](http://vzhan.cn/#start.html), verifies its SHA-256 checksum, initializes local configuration and keys, installs boot startup, and waits for the managed process and local version endpoint before continuing. Existing executables, configuration, and keys are never replaced.
@@ -37,13 +37,13 @@ When the installer creates a new node, it shows the free space on the selected d
 Choose another empty directory for a fresh node, select a stopped node, or select among multiple running instances:
 
 ```bash
-npx --yes @inoku/lifedrive --leither-root /path/to/leither
+npx --yes @inoku/lepan --leither-root /path/to/leither
 ```
 
 For example, create a fresh node with a 250 GB maximum:
 
 ```bash
-npx --yes @inoku/lifedrive --leither-root /path/to/leither --storage-max-gb 250
+npx --yes @inoku/lepan --leither-root /path/to/leither --storage-max-gb 250
 ```
 
 Use `--no-install-leither` to require an already running node. Upgrades always require a running node and never install or start Leither. The legacy browser-device management options remain Linux/macOS-only; Windows uses household management from a paired phone. A nonempty directory without a Leither executable is left untouched. New nodes use port 4800 by default; a port conflict stops setup with instructions. Leither V0.24.11 or newer is required; older existing nodes must be upgraded separately.
@@ -65,7 +65,7 @@ runs `Leither run` in the foreground so the manager can supervise it directly.
 To configure only Leither's startup without changing LifeDrive files:
 
 ```bash
-npx --yes @inoku/lifedrive --leither-service --leither-root /path/to/leither
+npx --yes @inoku/lepan --leither-service --leither-root /path/to/leither
 ```
 
 Run this as the node's normal user, not with `sudo npx`; on Windows, use an Administrator terminal. It can enable an already running service installed by this package without restarting it. A process started manually or by another service manager is left untouched: keep that manager, or stop it in a maintenance window and disable its old boot registration before adopting the package's service. A service/task definition with different settings or another node/account is never overwritten. Normal LifeDrive upgrades do not restart Leither. Systems without systemd can supply a running node through their own manager and use `--no-install-leither`.

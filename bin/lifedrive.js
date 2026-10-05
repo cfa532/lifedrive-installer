@@ -45,7 +45,7 @@ function main() {
   if (process.platform === "win32") {
     const installerPath = path.join(distributionDirectory, "lifedrive-install.ps1");
     if (![installerPath, bundlePath, checksumPath].every(candidate => fs.existsSync(candidate))) {
-      throw new Error("The npm package is incomplete. Reinstall @inoku/lifedrive and try again.");
+      throw new Error("The npm package is incomplete. Reinstall @inoku/lepan and try again.");
     }
     const result = spawnSync(
       "powershell.exe",
@@ -67,7 +67,7 @@ function main() {
     throw new Error("LePan setup requires /bin/bash.");
   }
   if (![installerPath, bundlePath, checksumPath].every(candidate => fs.existsSync(candidate))) {
-    throw new Error("The npm package is incomplete. Reinstall @inoku/lifedrive and try again.");
+    throw new Error("The npm package is incomplete. Reinstall @inoku/lepan and try again.");
   }
 
   const localReleaseBase = pathToFileURL(distributionDirectory).href.replace(/\/$/, "");

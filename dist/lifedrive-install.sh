@@ -705,7 +705,7 @@ fi
 if (( UPGRADE_ONLY )); then
   if [[ ! -d "$LEITHER_WORKDIR/lifeDrive" ]] || { [[ ! -s "$LEITHER_WORKDIR/lifeDrive.owner" ]] && [[ ! -s "$LEITHER_WORKDIR/lifeDrive.households.json" ]]; }; then
     echo "LePan upgrade stopped: no complete existing installation was found at $LEITHER_WORKDIR." >&2
-    echo "Install it first with: npx --yes @inoku/lifedrive@latest" >&2
+    echo "Install it first with: npx --yes @inoku/lepan@latest" >&2
     exit 1
   fi
   echo "Existing LePan installation found. Its device keys, address, and drive data will be preserved."

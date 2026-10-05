@@ -1,7 +1,7 @@
 {
-  "name": "@inoku/lifedrive",
-  "version": "0.7.57",
-  "description": "Install LifeDrive and its Leither runtime on Linux, macOS, or Windows",
+  "name": "@inoku/lepan",
+  "version": "0.7.58",
+  "description": "Install LePan and its Leither runtime on Linux, macOS, or Windows",
   "os": [
     "linux",
     "darwin",
@@ -12,7 +12,7 @@
     "arm64"
   ],
   "bin": {
-    "lifedrive": "bin/lifedrive.js"
+    "lepan": "bin/lifedrive.js"
   },
   "files": [
     "bin/lifedrive.js",

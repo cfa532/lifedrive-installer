@@ -2,7 +2,7 @@
 
 **Audience:** people who run a LifeDrive node, and the people who use it.
 **Covers:** installing LifeDrive on a node, upgrading it, how identity works, and what to do when a device or an identity is lost.
-**Current release:** 0.7.35 (`npm view @inoku/lifedrive version` shows the latest).
+**Current release:** 0.7.35 (`npm view @inoku/lepan version` shows the latest).
 
 LifeDrive is a private drive that runs on your own Leither node. Your files stay on
 that node; phones, tablets and browsers connect to it directly. There is no
@@ -45,7 +45,7 @@ On Windows, open the downloaded setup file and approve the Administrator prompt.
 Linux users and experienced Mac users can instead install Node.js 18 or later and use Terminal. On the node, as the account that runs Leither:
 
 ```bash
-npx --yes @inoku/lifedrive@latest
+npx --yes @inoku/lepan@latest
 ```
 
 The same command also remains available from an Administrator Windows Terminal for advanced use. WSL and Git Bash are not required.
@@ -67,13 +67,13 @@ setup. Follow its prompts.
 To choose another empty directory or start a stopped existing node:
 
 ```bash
-npx --yes @inoku/lifedrive@latest --leither-root "/path/to/leither"
+npx --yes @inoku/lepan@latest --leither-root "/path/to/leither"
 ```
 
 For unattended fresh setup, supply the limit explicitly:
 
 ```bash
-npx --yes @inoku/lifedrive@latest --leither-root "/path/to/leither" --storage-max-gb 100
+npx --yes @inoku/lepan@latest --leither-root "/path/to/leither" --storage-max-gb 100
 ```
 
 The selected maximum cannot exceed the space currently available on that drive.
@@ -111,7 +111,7 @@ Get-ScheduledTask -TaskName "LifeDrive Leither", "LifeDrive Identity"
 To add boot startup to an existing node without changing LifeDrive files:
 
 ```bash
-npx --yes @inoku/lifedrive@latest --leither-service --leither-root "/path/to/leither"
+npx --yes @inoku/lepan@latest --leither-service --leither-root "/path/to/leither"
 ```
 
 A service already installed by this package is enabled without restarting it.
@@ -133,7 +133,7 @@ run:
 Still on the node:
 
 ```bash
-npx --yes @inoku/lifedrive@latest --upgrade --household
+npx --yes @inoku/lepan@latest --upgrade --household
 ```
 
 This keeps what step 2.1 installed and adds users and phones:
@@ -193,11 +193,11 @@ restart Leither.
 On the node, as the account that runs Leither:
 
 ```bash
-npx --yes @inoku/lifedrive@latest --upgrade
+npx --yes @inoku/lepan@latest --upgrade
 ```
 
 To install a specific release instead of the latest, name it, for example
-`npx --yes @inoku/lifedrive@0.7.35 --upgrade`. Release versions are never reused,
+`npx --yes @inoku/lepan@0.7.35 --upgrade`. Release versions are never reused,
 so a version number always means the same files.
 
 The installer saves the previous application files to a backup directory, prints
@@ -388,8 +388,8 @@ uploads that have not been committed yet.
 
 | Task | Where |
 |---|---|
-| Install on a node | `npx --yes @inoku/lifedrive@latest`; Linux/macOS then run it with `--upgrade --household` |
-| Upgrade a node | `npx --yes @inoku/lifedrive@latest --upgrade`; restart only identity if the platform installer does not do so |
+| Install on a node | `npx --yes @inoku/lepan@latest`; Linux/macOS then run it with `--upgrade --household` |
+| Upgrade a node | `npx --yes @inoku/lepan@latest --upgrade`; restart only identity if the platform installer does not do so |
 | Check the node | Check the platform service/task and open `http://127.0.0.1:4811/health` locally |
 | Create the first user | Phone: **Settings → Set up users → Paste node identity** |
 | Add your own device | Existing device: **My devices → Pair another device**; new device: **Set up users → Choose identity file**; approve the match code |

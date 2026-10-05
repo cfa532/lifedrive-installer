@@ -19,7 +19,7 @@ $releaseBase = "http://vzhan.cn/mm/Fc1BRTFafOGzq5P8KmkVJqwS2v2"
 
 function Show-Usage {
     Write-Host @"
-Usage: npx --yes @inoku/lifedrive [options]
+Usage: npx --yes @inoku/lepan [options]
 
 Windows options:
   --leither-root DIR        Existing node or directory for a new node.
@@ -296,7 +296,7 @@ $packageRoot = [IO.Path]::GetFullPath($PackageDirectory)
 $archive = Join-Path $packageRoot "lifedrive-bundle.tar.gz"
 $checksumFile = $archive + ".sha256"
 if (-not (Test-Path -LiteralPath $archive -PathType Leaf) -or -not (Test-Path -LiteralPath $checksumFile -PathType Leaf)) {
-    throw "The npm package is incomplete. Reinstall @inoku/lifedrive and try again."
+    throw "The npm package is incomplete. Reinstall @inoku/lepan and try again."
 }
 
 $runningRoots = @(Get-RunningLeitherRoots)

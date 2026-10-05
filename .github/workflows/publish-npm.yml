@@ -29,7 +29,7 @@ jobs:
       - name: Use current npm CLI
         run: npm install --global npm@latest
 
-      - name: Publish @inoku/lifedrive
+      - name: Publish @inoku/lepan
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
           MANUAL_VERSION: ${{ inputs.version }}
@@ -39,8 +39,8 @@ jobs:
             echo "Invalid npm version: $VERSION" >&2
             exit 1
           fi
-          if npm view "@inoku/lifedrive@$VERSION" version >/dev/null 2>&1; then
-            echo "@inoku/lifedrive@$VERSION is already published."
+          if npm view "@inoku/lepan@$VERSION" version >/dev/null 2>&1; then
+            echo "@inoku/lepan@$VERSION is already published."
             exit 0
           fi
           npm version "$VERSION" --no-git-tag-version --allow-same-version
