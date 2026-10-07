@@ -156,8 +156,11 @@ Within ten minutes of the invitation being printed:
 3. Enter **Your name** and a name for this device.
 4. Tap **Scan QR code** and point the phone at the terminal or saved image. You can also use **Paste node identity** or **Choose identity file**.
 
-The phone creates its own device key, claims the node, and opens your new, empty
-personal drive. You are now the node's first user and its **administrator**, and
+The phone creates its own device key, claims the node, and opens your personal
+drive after its file list is ready. Files contains **Getting started with LePan.txt**,
+a short guide to Files, Backups, connecting other phones, and keeping access to
+your account. It is added once per account; reconnecting a phone does not duplicate
+it, and deleting or renaming it does not cause it to return. You are now the node's first user and its **administrator**, and
 this phone is a **device manager**.
 
 You can close the setup screen without pairing to look around the app. Tapping an
@@ -360,12 +363,26 @@ What remains true:
 - **Other users are unaffected.** Their drives and devices keep working.
 - **Recovery needs the node operator.** Contact whoever runs the node.
 
-For node operators: LifeDrive does not yet include a repair command that binds a
-new device to an existing user. The setup invitation (`--household`) only works
-on a node that has no users, so it cannot be used for this. Until the repair
-command exists, recovering a user who has lost every device needs help from the
-LifeDrive maintainers. Do not delete or edit `.lifedrive-household/` to try to
-work around it: it holds every user's authority and the authorization journal.
+For node operators: run this on the computer hosting Leither, replacing `Owner`
+with the existing account name (quote names containing spaces), or its exact user
+ID if names are duplicated:
+
+```bash
+npx --yes @inoku/lepan@latest --recover-device Owner
+```
+
+The account service briefly stops to issue a private reconnect invitation, then
+starts again before the QR code is shown. Scan it under **Settings → Set up users**
+on the phone. It enrolls a new device manager into the same account; account keys,
+Files, Backups, and other devices are preserved. A reconnect invitation expires
+in ten minutes unless that phone has already begun claiming it. Treat it as a
+private account-access key. An expired, unclaimed code can be replaced by rerunning
+the same command. Once connected, remove access for the forgotten device from
+**My devices**. Leither itself stays running.
+
+The node operator's local access authorizes this recovery; ordinary device
+invitations still require approval from a paired device manager. `--household`
+remains first-account setup and cannot replace an existing account.
 
 ### 5.4 Prevent lockout
 

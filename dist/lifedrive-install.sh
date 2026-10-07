@@ -12,6 +12,7 @@ LEITHER_SERVICE_ONLY=0
 LEITHER_SERVICE_BOOTSTRAPPED=0
 HOUSEHOLD_CONFIG=""
 HOUSEHOLD_SETUP=0
+RECOVER_DEVICE=""
 STORAGE_MAX_GB="${LIFEDRIVE_STORAGE_MAX_GB:-}"
 setup_command_args=()
 setup_arg_count=0
@@ -29,6 +30,7 @@ Installer options:
   --release-base URL        Alternate GitHub Release asset base URL.
   --upgrade                 Upgrade an existing LePan without changing device authorization.
   --household              Set up household users or renew an unclaimed setup invitation.
+  --recover-device USER    Reconnect a phone to an existing account, using its name or user ID.
   --household-config FILE   Install mobile-led household setup using a private service configuration.
 
 Setup options are forwarded to lifeDrive-setup.sh. Common examples:
@@ -51,6 +53,12 @@ while (( $# )); do
       INSTALL_LEITHER=0
       ;;
     --household)
+      HOUSEHOLD_SETUP=1
+      ;;
+    --recover-device)
+      shift
+      [[ $# -gt 0 && -n "$1" && "$1" != --* ]] || { echo "--recover-device requires an existing account name or user ID" >&2; exit 2; }
+      RECOVER_DEVICE="$1"
       HOUSEHOLD_SETUP=1
       ;;
     --household-config)
@@ -103,6 +111,10 @@ while (( $# )); do
   shift
 done
 
+if [[ -n "$RECOVER_DEVICE" ]] && (( operation_count )); then
+  echo "Use --recover-device separately from --upgrade and device-management options." >&2
+  exit 2
+fi
 if (( operation_count > 1 )); then
   echo "Choose only one of --upgrade, --add-device, --list-devices, or --revoke-device." >&2
   exit 2
@@ -942,7 +954,7 @@ chmod 700 "$LEITHER_WORKDIR/lifeDrive/"*.sh
 export LIFEDRIVE_WORKDIR="$LEITHER_WORKDIR"
 export LIFEDRIVE_LEITHER_PATH="$LEITHER_WORKDIR/Leither"
 if (( HOUSEHOLD_SETUP )); then
-  /bin/bash "$LEITHER_WORKDIR/lifedrive-identity/setup-node.sh" "$LEITHER_WORKDIR"
+  /bin/bash "$LEITHER_WORKDIR/lifedrive-identity/setup-node.sh" "$LEITHER_WORKDIR" "$RECOVER_DEVICE"
   exit 0
 fi
 if [[ -n "$HOUSEHOLD_CONFIG" ]]; then

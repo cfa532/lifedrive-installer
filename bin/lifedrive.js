@@ -42,7 +42,7 @@ async function showPairingCode(resultPath) {
   // The child writes this only after setup succeeds. Never scrape its output:
   // it can contain node keys as well as the mobile device's pairing identity.
   const pairing = JSON.parse(fs.readFileSync(resultPath, "utf8"));
-  if (pairing.version !== 1 || !["lifedrive-device-identity", "lifedrive-node-setup"].includes(pairing.type)) {
+  if (pairing.version !== 1 || !["lifedrive-device-identity", "lifedrive-node-setup", "lifedrive-user-identity"].includes(pairing.type)) {
     throw new Error("Unsupported pairing data");
   }
   const directory = fs.readFileSync(`${resultPath}.directory`, "utf8");
@@ -52,7 +52,7 @@ async function showPairingCode(resultPath) {
   // The node enforces expiry and returns account details after a successful claim.
   // Keep the full invitation in the import file, and leave legacy identities intact.
   // iOS still requires certificate_sha256 even when Leither transport uses a key.
-  const qrPayload = pairing.type === "lifedrive-node-setup"
+  const qrPayload = pairing.type !== "lifedrive-device-identity"
     ? JSON.stringify(Object.fromEntries([
       "type", "version", "app_id", "node_id", "endpoint", "transport",
       "transport_key", "certificate_sha256", "request_id", "secret",
@@ -65,12 +65,12 @@ async function showPairingCode(resultPath) {
   // Keep a private copy even when QR generation succeeds.
   fs.writeFileSync(identityPath, payload, { flag: "wx", mode: 0o600 });
   const options = { errorCorrectionLevel: "M", margin: 4, scale: 8 };
-  const privacyNote = pairing.type === "lifedrive-node-setup"
+  const privacyNote = pairing.type !== "lifedrive-device-identity"
     ? "Keep it private. This invitation expires ten minutes after creation."
     : "This contains your device private key. Keep it private and delete it after pairing.";
   const renewalHint = pairing.type === "lifedrive-node-setup"
     ? "\nInvitation expired? Run this again on the node:\n  npx --yes @inoku/lepan@latest --household\n"
-    : "";
+    : pairing.type === "lifedrive-user-identity" ? "\nInvitation expired? Run the same reconnect command again on this computer.\n" : "";
   let modules;
   try {
     const QRCode = require("qrcode");
@@ -153,6 +153,7 @@ function windowsArguments(values) {
   const valueOptions = new Map([
     ["--leither-root", "-LeitherRoot"],
     ["--storage-max-gb", "-StorageMaxGB"],
+    ["--recover-device", "-RecoverDevice"],
   ]);
   const switches = new Map([
     ["--no-install-leither", "-NoInstallLeither"],

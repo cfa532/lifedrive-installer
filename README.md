@@ -112,6 +112,21 @@ already exist, use **My devices** on a paired phone to invite another device. An
 interrupted first claim must be resumed on the original phone with its original
 invitation. Ordinary `--upgrade` does not renew invitations.
 
+### Reconnect after forgetting the only phone
+
+Run `npx --yes @inoku/lepan@latest --recover-device Owner` on the computer hosting
+Leither, substituting the existing account name or user ID. Scan the displayed
+QR code to reconnect to that same account. This node-operator action preserves
+account keys, files, backups, and other devices. The reconnect invitation is
+private and expires in ten minutes; rerun the same command if it expires before
+being claimed. The account service briefly restarts, while Leither keeps running.
+Normal phone-to-phone invitations still require device-manager approval.
+
+First-account pairing prepares the file catalog before opening Files and adds
+`Getting started with LePan.txt` once. The guide can be renamed or deleted and is
+not duplicated when another phone joins. First setup also grants each account
+write access only to its own node staging directory when Leither requires it.
+
 An existing installation is backed up before replacement. The explicit `--upgrade` path requires the saved application and key-auth owner state before changing files, synchronizes the same published application MID, and does not rerun device or domain setup. This release intentionally does not migrate the earlier password-owner prototype. Application files are active only after Leither advances the application from `cur` to `last`; a publication timeout leaves the prior `last` version serving users.
 
 Source code and design documentation are maintained separately. No device key, identity bundle, PPT, publisher key, or node-specific application MID is included in these release assets.

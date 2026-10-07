@@ -8,6 +8,7 @@ param(
     [switch]$LeitherService,
     [switch]$Upgrade,
     [switch]$Household,
+    [string]$RecoverDevice,
     [switch]$Help
 )
 
@@ -28,6 +29,7 @@ Windows options:
   --leither-service         Configure Leither startup only.
   --upgrade                 Upgrade an existing Windows LePan installation.
   --household               Set up household users or renew an unclaimed setup invitation.
+  --recover-device USER     Reconnect a phone to an existing account name or user ID.
 
 Run Windows Terminal or PowerShell as Administrator. Windows setup supports
 native x64 Windows 10/11 and Windows Server; WSL and Git Bash are not required.
@@ -35,6 +37,10 @@ native x64 Windows 10/11 and Windows Server; WSL and Git Bash are not required.
 }
 
 if ($Help) { Show-Usage; return }
+if ($RecoverDevice) {
+    if ($Upgrade -or $LeitherService) { throw "Use --recover-device separately from --upgrade and --leither-service." }
+    $Household = $true
+}
 if ($Upgrade -and $LeitherService) { throw "Use -Upgrade and -LeitherService separately." }
 if ($StorageMaxGB -lt 0) { throw "Leither storage must be a positive whole number of gigabytes." }
 if ($StorageMaxGB -eq 0 -and $env:LIFEDRIVE_STORAGE_MAX_GB) {
@@ -469,7 +475,7 @@ if ($Upgrade) {
     return
 }
 try {
-    & (Join-Path $root "lifedrive-identity\setup-node.ps1") -LeitherRoot $root
+    & (Join-Path $root "lifedrive-identity\setup-node.ps1") -LeitherRoot $root -RecoverDevice $RecoverDevice
 } catch {
     if ($identityTaskStopped) {
         try { Start-ScheduledTask -TaskName $identityTaskName } catch {}
