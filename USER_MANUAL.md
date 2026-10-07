@@ -150,10 +150,10 @@ like a key: do not post it, email it to others, or paste it anywhere public.
 
 Within ten minutes of the invitation being printed:
 
-1. Copy the whole invitation block from the terminal and send it to your phone, or copy it on a computer your phone shares a clipboard with.
+1. Keep the installer’s final QR code visible, or open the saved `lepan-pairing-<id>.png` using the path it prints. If you used the standalone shell installer, copy the whole invitation block instead.
 2. Open LifeDrive on the phone. The **Set up your LifeDrive** screen opens by itself (or open **Settings → Set up users**).
 3. Enter **Your name** and a name for this device.
-4. Tap **Paste node identity** (or **Choose identity file** if you saved the invitation as a file).
+4. Tap **Scan QR code** and point the phone at the terminal or saved image. You can also use **Paste node identity** or **Choose identity file**.
 
 The phone creates its own device key, claims the node, and opens your new, empty
 personal drive. You are now the node's first user and its **administrator**, and

@@ -1,6 +1,6 @@
 {
   "name": "@inoku/lepan",
-  "version": "0.7.59",
+  "version": "0.7.61",
   "description": "Install LePan and its Leither runtime on Linux, macOS, or Windows",
   "os": [
     "linux",
@@ -21,6 +21,9 @@
   ],
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "qrcode": "1.5.4"
   },
   "repository": {
     "type": "git",
