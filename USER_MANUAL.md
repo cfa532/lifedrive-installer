@@ -142,8 +142,7 @@ This keeps what step 2.1 installed and adds users and phones:
 
 1. Creates LifeDrive's private configuration in `<Leither root>/.lifedrive-household/`.
 2. Installs and starts the identity service: `lifedrive-identity` through systemd on Linux, `uk.inoku.lifedrive-identity` through launchd on macOS, or `LifeDrive Identity` through Task Scheduler on Windows. Leither itself is not restarted and must be running separately.
-3. Prints a **setup invitation**: a block of text, followed by
-   *"Keep the invitation above private. It expires in ten minutes."*
+3. Displays a **setup invitation** as a QR code. If the terminal is too small, the full-size QR image opens automatically on this computer. The invitation expires in ten minutes.
 
 The setup invitation is what makes a phone the first user of this node. Treat it
 like a key: do not post it, email it to others, or paste it anywhere public.
@@ -152,7 +151,7 @@ like a key: do not post it, email it to others, or paste it anywhere public.
 
 Within ten minutes of the invitation being printed:
 
-1. Keep the installer’s final QR code visible, or open the saved `lepan-pairing-<id>.png` using the path it prints. If you used the standalone shell installer, copy the whole invitation block instead.
+1. Scan the installer’s final QR code or the QR image that opens automatically. The saved image path is a fallback for remote sessions or computers without an image viewer. If you used the standalone shell installer, copy the whole invitation block instead.
 2. Open LifeDrive on the phone. The **Set up your LifeDrive** screen opens by itself (or open **Settings → Set up users**).
 3. Enter **Your name** and a name for this device.
 4. Tap **Scan QR code** and point the phone at the terminal or saved image. You can also use **Paste node identity** or **Choose identity file**.
@@ -168,7 +167,7 @@ empty page, or **Settings → Set up users**, opens it again.
 
 | Situation | What to do |
 |---|---|
-| The invitation expired before you pasted it | On the node, stop the identity service (`sudo systemctl stop lifedrive-identity` on Linux, or `sudo launchctl bootout system/uk.inoku.lifedrive-identity` on macOS) and run the command from 2.2 again for a fresh invitation. |
+| The invitation expired before you pasted it | On the node, run `npx --yes @inoku/lepan@latest --household` again for a fresh QR code. Setup renews an unclaimed invitation and preserves the existing identity; no manual service commands are needed. |
 | You pasted it, but the app lost its connection or was closed | Open the app on **the same phone** and paste **the same invitation** again. A claim that has started can finish after the ten minutes have passed. Do not delete the app or ask for a new invitation: that would abandon the phone's pending key. |
 | Setup says the node already has users | The node has been claimed. Add further devices from **My devices** (section 4), not with a new setup invitation. |
 

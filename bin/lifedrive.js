@@ -12,6 +12,31 @@ const distributionDirectory = path.resolve(__dirname, "..", "dist");
 const bundlePath = path.join(distributionDirectory, "lifedrive-bundle.tar.gz");
 const checksumPath = `${bundlePath}.sha256`;
 
+function openPairingImage(imagePath) {
+  // A remote server must not open a window in another user's desktop session.
+  if (process.env.SSH_CONNECTION || process.env.SSH_TTY) return false;
+  let command;
+  let args;
+  if (process.platform === "darwin") {
+    command = "/usr/bin/open";
+    args = [imagePath];
+  } else if (process.platform === "win32") {
+    command = "powershell.exe";
+    args = ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command",
+      "Start-Process -FilePath $env:LEPAN_PAIRING_IMAGE -ErrorAction Stop"];
+  } else if (process.platform === "linux" && (process.env.DISPLAY || process.env.WAYLAND_DISPLAY)) {
+    command = "xdg-open";
+    args = [imagePath];
+  } else {
+    return false;
+  }
+  const result = spawnSync(command, args, {
+    stdio: "ignore", timeout: 5000,
+    env: { ...process.env, LEPAN_PAIRING_IMAGE: imagePath },
+  });
+  return !result.error && result.status === 0;
+}
+
 async function showPairingCode(resultPath) {
   if (!fs.existsSync(resultPath)) return;
   // The child writes this only after setup succeeds. Never scrape its output:
@@ -64,17 +89,27 @@ async function showPairingCode(resultPath) {
     process.stderr.write(renewalHint);
     return;
   }
-  process.stdout.write("\nNext: pair your phone\n\n");
-  process.stdout.write("  1. Open LePan on your iPhone or Android phone.\n");
-  process.stdout.write("  2. Go to Settings > Set up users > Scan QR code.\n");
-  // Small terminal codes use half-height blocks. If the terminal would wrap,
-  // or scroll the instructions out of view, use the full-resolution PNG.
+  // Never hide a terminal code just because the window is short. Open the PNG
+  // automatically when the whole code cannot be visible at once, and put the
+  // terminal code last so subsequent instructions cannot scroll it away.
   const width = modules.size + options.margin * 2;
   const height = Math.ceil(width / 2);
-  const fitsTerminal = process.stdout.isTTY && process.stdout.columns > width &&
-    process.stdout.rows >= height + 26;
-  if (fitsTerminal) {
-    process.stdout.write("  3. Scan the code below.\n\n");
+  const fitsWidth = process.stdout.isTTY && process.stdout.columns > width;
+  const fitsScreen = fitsWidth && process.stdout.rows >= height + 3;
+  const imageOpened = !fitsScreen && openPairingImage(imagePath);
+  process.stdout.write("\nPair your phone\n\n");
+  process.stdout.write("Open LePan > Settings > Set up users > Scan QR code.\n");
+  process.stdout.write(imageOpened
+    ? "The QR image has opened automatically. Scan it with your phone.\n"
+    : fitsWidth ? "Scan the QR code below with your phone.\n"
+    : "This terminal is too narrow for the QR code and no image viewer could be opened. Open the saved image below.\n");
+  process.stdout.write(`${privacyNote}\n`);
+  process.stdout.write(`\nSaved QR image: ${imagePath}\n`);
+  process.stdout.write(`Pairing file (Choose identity file): ${identityPath}\n`);
+  process.stdout.write("Keep this computer on and connected while using LePan.\n");
+  process.stdout.write(renewalHint);
+  if (fitsWidth) {
+    process.stdout.write("\n");
     // Explicit colors and a four-module quiet zone work on light/dark themes.
     const dark = (x, y) => x >= 0 && y >= 0 && x < modules.size && y < modules.size && modules.get(y, x);
     let terminal = "";
@@ -86,16 +121,7 @@ async function showPairingCode(resultPath) {
       terminal += "\x1b[0m\n";
     }
     process.stdout.write(terminal);
-  } else {
-    process.stdout.write("  3. Open the saved QR image on this computer and scan it.\n");
   }
-  process.stdout.write(`\nQR image:\n  ${imagePath}\n\n${privacyNote}\n`);
-  process.stdout.write("\nNo Scan QR code button? Transfer this pairing file to your phone:\n");
-  process.stdout.write(`  ${identityPath}\n`);
-  process.stdout.write("Then open Settings > Set up users > Choose identity file.\n");
-  process.stdout.write("Keep the pairing file private; delete the transfer copy after import.\n");
-  process.stdout.write("Keep this computer on and connected while using LePan.\n");
-  process.stdout.write(renewalHint);
 }
 
 async function runInstaller(command, args) {
