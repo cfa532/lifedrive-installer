@@ -86,7 +86,31 @@ The Linux/macOS legacy browser-owner setup uses the built-in AV1 registration en
 
 LifeDrive requires Leither V0.24.11 or newer. Linux/macOS browser-owner setup creates a separate Ed25519 `sodiumv2` identity for the primary browser. Windows prints a private ten-minute invitation for the first paired phone; later users and devices are managed from a paired device.
 
-After successful npm setup, the installer saves a private `lepan-pairing-<id>.png` and prints its full path. It also displays the QR code when the terminal is wide enough. In the iPhone or Android app, open **Settings → Set up users → Scan QR code** and scan the terminal or the saved image. The PNG is saved in the Leither root on Linux/macOS and its private `.lifedrive-household` directory on Windows. Household invitations expire ten minutes after creation; legacy identity codes contain a device private key, so keep them private and delete the image after pairing. Legacy `--add-device` and `--upgrade` also produce a code when an identity is available; household upgrades preserve existing pairings without issuing new invitations.
+After successful npm setup, the installer saves a private `lepan-pairing-<id>.png` and prints its full path. It also displays the QR code when it fits the terminal's width and height. In the iPhone or Android app, open **Settings → Set up users → Scan QR code** and scan the terminal or the saved image. A private `.json` invitation is saved alongside it for apps without a setup scanner: transfer that file to the phone and use **Choose identity file**. These files are saved in the Leither root on Linux/macOS and its private `.lifedrive-household` directory on Windows. Household invitations expire ten minutes after creation; legacy identity codes contain a device private key, so keep them private and delete the transfer copies after pairing. Legacy `--add-device` and `--upgrade` also produce a code when an identity is available; household upgrades preserve existing pairings without issuing new invitations.
+
+### Renew an expired first-phone invitation
+
+Run this again **on the computer running Leither**:
+
+```bash
+npx --yes @inoku/lepan@latest --household
+```
+
+If more than one node is running, also pass `--leither-root` with the same node
+directory used during installation. On Windows, use an administrator terminal.
+The macOS setup package also supports renewal when run again.
+
+Before the first owner has been created, setup replaces the previous invitation
+and produces a fresh QR image and import file with a new ten-minute expiry. It
+briefly stops only the managed account service while issuing the invitation,
+then starts it and verifies readiness before displaying the new code. If issuance
+fails, it attempts to restore the service. Leither keeps running; existing node
+keys and drive data are preserved.
+
+Setup never replaces an existing owner or an interrupted account claim. If users
+already exist, use **My devices** on a paired phone to invite another device. An
+interrupted first claim must be resumed on the original phone with its original
+invitation. Ordinary `--upgrade` does not renew invitations.
 
 An existing installation is backed up before replacement. The explicit `--upgrade` path requires the saved application and key-auth owner state before changing files, synchronizes the same published application MID, and does not rerun device or domain setup. This release intentionally does not migrate the earlier password-owner prototype. Application files are active only after Leither advances the application from `cur` to `last`; a publication timeout leaves the prior `last` version serving users.
 

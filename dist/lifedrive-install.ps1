@@ -27,7 +27,7 @@ Windows options:
   --no-install-leither      Require an already running Leither node.
   --leither-service         Configure Leither startup only.
   --upgrade                 Upgrade an existing Windows LePan installation.
-  --household               Accepted for parity; Windows uses household mode by default.
+  --household               Set up household users or renew an unclaimed setup invitation.
 
 Run Windows Terminal or PowerShell as Administrator. Windows setup supports
 native x64 Windows 10/11 and Windows Server; WSL and Git Bash are not required.
@@ -382,8 +382,8 @@ if ($Upgrade) {
     if (Test-Path -LiteralPath (Join-Path $root "lifeDrive.owner") -PathType Leaf) {
         throw "This node uses the legacy browser-owner setup, which Windows does not migrate automatically. Its files were left unchanged."
     }
-    if (Test-Path -LiteralPath $routes -PathType Leaf) {
-        throw "An initialized LePan household already exists. Rerun with --upgrade."
+    if ((Test-Path -LiteralPath $routes -PathType Leaf) -and -not $Household) {
+        throw "A LePan household already exists. Use --household for phone setup, or --upgrade for application updates."
     }
 }
 

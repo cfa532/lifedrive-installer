@@ -28,7 +28,7 @@ Installer options:
   --storage-max-gb GB       Maximum disk space for a newly installed Leither node (default: 100 GB).
   --release-base URL        Alternate GitHub Release asset base URL.
   --upgrade                 Upgrade an existing LePan without changing device authorization.
-  --household              Prepare mobile household setup using the existing node address.
+  --household              Set up household users or renew an unclaimed setup invitation.
   --household-config FILE   Install mobile-led household setup using a private service configuration.
 
 Setup options are forwarded to lifeDrive-setup.sh. Common examples:
@@ -172,14 +172,14 @@ choose_new_node_storage() {
     valid_storage_gb "$STORAGE_MAX_GB" || { echo "Invalid saved Leither storage choice." >&2; return 1; }
   fi
   available_gb=$(available_storage_gb)
-  echo
-  echo "Choose the maximum hard-drive space Leither may use for LePan and any other data on this node."
+  printf '\nStorage\n'
+  echo "Set the disk space limit for this node (LePan and other Leither data)."
   if [[ "$available_gb" =~ ^[0-9]+$ ]]; then
-    echo "Available now on the selected drive: ${available_gb} GB."
+    echo "  Available: ${available_gb} GB"
   fi
   if [[ -n "$STORAGE_MAX_GB" ]]; then
     selected_gb="$STORAGE_MAX_GB"
-    echo "Leither storage limit: ${selected_gb} GB."
+    echo "  Selected limit: ${selected_gb} GB"
   elif [[ -t 0 ]]; then
     while true; do
       read -r -p "Maximum Leither storage in GB [$default_gb]: " selected_gb
@@ -252,7 +252,6 @@ try {
   throw error;
 }
 NODE
-  echo "Leither storage limit saved as ${STORAGE_MAX_GB} GB."
 }
 
 install_leither_binary() (
@@ -475,7 +474,8 @@ configure_macos_leither_firewall() {
     return 1
   }
 
-  echo "Allowing Leither through the macOS Application Firewall..."
+  printf '\nNetwork access\n'
+  echo "Allowing connections through the macOS firewall..."
   firewall_apps=$("$firewall" --listapps) || {
     echo "LePan setup could not read the macOS Application Firewall rules." >&2
     return 1
@@ -501,7 +501,7 @@ configure_macos_leither_firewall() {
     echo "The macOS Application Firewall still reports Leither as blocked." >&2
     return 1
   }
-  echo "macOS Application Firewall allows incoming connections to Leither."
+  echo "  Firewall access ready."
 
   block_all_state=$("$firewall" --getblockall 2>/dev/null || true)
   if [[ "$block_all_state" == *"enabled"* ]]; then
@@ -566,7 +566,7 @@ finish_new_node_storage() {
   version=$(leither_version "$LEITHER_WORKDIR") || return 1
   port=$(node -e 'const fs=require("node:fs"),p=require("node:path"),r=process.argv[1];const f=["SystemVars.json","systemvars.json"].map(n=>p.join(r,n)).find(f=>fs.existsSync(f));const v=JSON.parse(fs.readFileSync(f)).ServicePort??4800;if(!Number.isInteger(v)||v<1||v>65535)process.exit(1);process.stdout.write(String(v));' "$LEITHER_WORKDIR") || return 1
   previous_pid=$(leither_service_pid) || return 1
-  echo "Restarting the newly created Leither node to activate its storage limit..."
+  echo "Applying the storage limit (restarting the newly created node)..."
   case "$(uname -s)" in
     Linux) sudo systemctl restart lifedrive-leither.service || return 1 ;;
     Darwin) sudo launchctl kickstart -k system/uk.inoku.leither || return 1 ;;
@@ -578,7 +578,7 @@ finish_new_node_storage() {
     return 1
   }
   rm -f -- "$pending" || return 1
-  echo "Leither restarted with the ${STORAGE_MAX_GB} GB storage limit."
+  echo "  Storage ready: ${STORAGE_MAX_GB} GB limit."
 }
 
 bootstrap_leither() {
@@ -801,6 +801,7 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
+printf '\nInstall LePan\n'
 if [[ "$RELEASE_BASE" == file://* ]]; then
   echo "Loading the LePan release included with the npm package..."
 else
