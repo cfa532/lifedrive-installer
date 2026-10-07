@@ -24,7 +24,7 @@ A LifeDrive node needs:
 | A startup manager | systemd on Linux, launchd on macOS, or Task Scheduler on Windows starts the node at boot and recovers it after crashes. |
 | The LifeDrive app on your phone | iPhone or Android. The first user is created from a phone. |
 
-LifeDrive never stops or restarts Leither. If more than one Leither node runs on
+Normal LifeDrive upgrades never stop or restart Leither. Linux/macOS fresh setup restarts only the node it just created to activate the selected storage limit. If more than one Leither node runs on
 the machine, the installer lists them and asks you to choose one with
 `--leither-root <directory>`.
 
@@ -53,7 +53,7 @@ The same command also remains available from an Administrator Windows Terminal f
 The installer finds an existing running Leither node. If none is running, it
 reuses Leither in the selected directory, current directory, or `PATH`, or
 downloads and verifies the official runtime for your machine. A new node is
-created in `~/.local/share/lifedrive/leither` on Linux/macOS or
+created in `~/.local/share/leither` on Linux/macOS or
 `%ProgramData%\LifeDrive\Leither` on Windows, initialized with its own private
 keys, and prepared for automatic boot startup. Before starting the service,
 setup shows the selected drive's available space and asks for the maximum space
@@ -63,6 +63,8 @@ node, including LePan; it does not preallocate the space. Setup then starts the
 service, waits for Leither's local version
 endpoint, verifies the LifeDrive archive, installs LifeDrive and runs terminal
 setup. Follow its prompts.
+
+Fresh Linux/macOS installations keep LePan application files in `<Leither root>/lepan` (by default `~/.local/share/leither/lepan`). This also applies to the macOS setup package. The folder contains `lifeDrive/` and `lifedrive-identity/`; compatibility links in the node root preserve the published app identity and service paths. Private node and household state stays in the node root. Existing installations retain their directories during upgrades.
 
 To choose another empty directory or start a stopped existing node:
 

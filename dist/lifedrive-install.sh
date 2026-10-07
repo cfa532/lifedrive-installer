@@ -164,13 +164,13 @@ available_storage_gb() {
   LC_ALL=C df -Pk "$LEITHER_WORKDIR" 2>/dev/null | awk 'NR == 2 && $4 ~ /^[0-9]+$/ { print int(($4 * 1024) / 1000000000) }'
 }
 
-configure_new_node_storage() {
-  local available_gb selected_gb default_gb=100 config
-  config="$LEITHER_WORKDIR/ds/config"
-  [[ -f "$config" && ! -L "$config" ]] || {
-    echo "Leither initialization did not create a regular datastore configuration at $config." >&2
-    return 1
-  }
+choose_new_node_storage() {
+  local available_gb selected_gb default_gb=100
+  local pending="$LEITHER_WORKDIR/.lifedrive-storage-pending"
+  if [[ -z "$STORAGE_MAX_GB" && -s "$pending" ]]; then
+    STORAGE_MAX_GB=$(cat "$pending")
+    valid_storage_gb "$STORAGE_MAX_GB" || { echo "Invalid saved Leither storage choice." >&2; return 1; }
+  fi
   available_gb=$(available_storage_gb)
   echo
   echo "Choose the maximum hard-drive space Leither may use for LePan and any other data on this node."
@@ -203,7 +203,18 @@ configure_new_node_storage() {
     echo "Free space or rerun setup with --storage-max-gb set to a smaller value." >&2
     return 1
   fi
-  node - "$config" "${selected_gb}GB" <<'NODE'
+  STORAGE_MAX_GB="$selected_gb"
+  # Retain the choice if service startup fails or the installer is interrupted.
+  (umask 077; printf '%s\n' "$selected_gb" > "$pending")
+}
+
+configure_new_node_storage() {
+  local config="$LEITHER_WORKDIR/ds/config"
+  [[ -f "$config" && ! -L "$config" ]] || {
+    echo "Leither startup did not create a regular datastore configuration at $config." >&2
+    return 1
+  }
+  node - "$config" "${STORAGE_MAX_GB}GB" <<'NODE' || return 1
 const fs = require("node:fs"), path = require("node:path");
 const file = process.argv[2], desired = process.argv[3];
 const info = fs.lstatSync(file);
@@ -241,7 +252,7 @@ try {
   throw error;
 }
 NODE
-  echo "Leither storage limit saved as ${selected_gb} GB."
+  echo "Leither storage limit saved as ${STORAGE_MAX_GB} GB."
 }
 
 install_leither_binary() (
@@ -499,6 +510,77 @@ configure_macos_leither_firewall() {
   fi
 }
 
+wait_for_leither() {
+  local version="$1" port="$2" previous_pid="${3:-}" attempt response current_pid
+  for attempt in {1..30}; do
+    current_pid=$(leither_service_pid || true)
+    response=$(curl --noproxy '*' -fsS --max-time 2 "http://127.0.0.1:$port/getvar?name=ver" 2>/dev/null || true)
+    if [[ -z "$previous_pid" || "$current_pid" != "$previous_pid" ]] &&
+       leither_service_owns_process &&
+       node -e 'try { process.exit(JSON.parse(process.argv[1]).replace(/^V/, "") === process.argv[2] ? 0 : 1); } catch { process.exit(1); }' "$response" "$version"; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "Leither did not become ready. Its files and service were retained." >&2
+  echo "Linux: journalctl -u lifedrive-leither.service. macOS: $LEITHER_WORKDIR/leither-service.log." >&2
+  return 1
+}
+
+verify_new_node_storage() {
+  local report
+  report=$(cd "$LEITHER_WORKDIR" && ./Leither repo stat --json 2>/dev/null) || return 1
+  # Some Leither versions still return a text table with --json. Read only the
+  # numeric active limit; never print the complete node response.
+  printf '%s' "$report" | node -e '
+const fs = require("node:fs");
+try {
+  const source = fs.readFileSync(0, "utf8");
+  let value;
+  try {
+    const reply = JSON.parse(source), data = reply.data ?? reply;
+    value = data.StorageMax ?? data.storageMax;
+  } catch {
+    value = source.match(/^StorageMax:[ \t]*(\d+)[ \t]*$/m)?.[1];
+  }
+  if (value === undefined || BigInt(value) !== BigInt(process.argv[1]) * 1000000000n) process.exit(1);
+} catch { process.exit(1); }
+' "$STORAGE_MAX_GB"
+}
+
+finish_new_node_storage() {
+  local pending="$LEITHER_WORKDIR/.lifedrive-storage-pending" previous_pid version port
+  [[ -f "$pending" && ! -L "$pending" ]] || return 1
+  # A restart is permitted only for the new node this installer is still
+  # provisioning, never a normal upgrade or another manager's process.
+  (( ! UPGRADE_ONLY && ! MANAGEMENT_ONLY && INSTALL_LEITHER )) || {
+    echo "Finish the pending fresh installation before upgrading or managing devices." >&2; return 1;
+  }
+  [[ ! -s "$LEITHER_WORKDIR/lifeDrive.owner" && ! -s "$LEITHER_WORKDIR/lifeDrive.households.json" ]] || {
+    echo "Storage setup marker conflicts with an initialized LePan installation." >&2; return 1;
+  }
+  leither_service_owns_process || { echo "Pending storage setup belongs to a node outside the managed service." >&2; return 1; }
+  [[ -s "$LEITHER_WORKDIR/hostkey.cfg" ]] || { echo "Leither startup did not create its node key." >&2; return 1; }
+  choose_new_node_storage || return 1
+  configure_new_node_storage || return 1
+  version=$(leither_version "$LEITHER_WORKDIR") || return 1
+  port=$(node -e 'const fs=require("node:fs"),p=require("node:path"),r=process.argv[1];const f=["SystemVars.json","systemvars.json"].map(n=>p.join(r,n)).find(f=>fs.existsSync(f));const v=JSON.parse(fs.readFileSync(f)).ServicePort??4800;if(!Number.isInteger(v)||v<1||v>65535)process.exit(1);process.stdout.write(String(v));' "$LEITHER_WORKDIR") || return 1
+  previous_pid=$(leither_service_pid) || return 1
+  echo "Restarting the newly created Leither node to activate its storage limit..."
+  case "$(uname -s)" in
+    Linux) sudo systemctl restart lifedrive-leither.service || return 1 ;;
+    Darwin) sudo launchctl kickstart -k system/uk.inoku.leither || return 1 ;;
+    *) return 1 ;;
+  esac
+  wait_for_leither "$version" "$port" "$previous_pid" || return 1
+  verify_new_node_storage || {
+    echo "The new Leither process has not confirmed the selected storage limit. Rerun fresh setup to finish." >&2
+    return 1
+  }
+  rm -f -- "$pending" || return 1
+  echo "Leither restarted with the ${STORAGE_MAX_GB} GB storage limit."
+}
+
 bootstrap_leither() {
   if (( ! INSTALL_LEITHER || UPGRADE_ONLY || MANAGEMENT_ONLY )); then
     echo "LePan setup requires a running Leither node for this operation." >&2
@@ -513,7 +595,7 @@ bootstrap_leither() {
       LEITHER_WORKDIR=$(node -e 'const fs=require("node:fs"), path=require("node:path"); process.stdout.write(path.dirname(fs.realpathSync(process.argv[1])));' "$(command -v Leither)")
     else
       [[ "${HOME:-}" == /* ]] || { echo "Set --leither-root to an absolute installation directory." >&2; exit 1; }
-      LEITHER_WORKDIR="$HOME/.local/share/lifedrive/leither"
+      LEITHER_WORKDIR="$HOME/.local/share/leither"
     fi
   fi
   local new_node=0 node_version node_port storage_pending
@@ -533,7 +615,11 @@ bootstrap_leither() {
   # A failed quota choice or configuration write must be safely retryable. The
   # marker identifies only nodes this installer itself began creating; an
   # arbitrary stopped existing node is never treated as fresh.
-  if [[ -f "$storage_pending" && ! -L "$storage_pending" ]]; then new_node=1; fi
+  if [[ -L "$storage_pending" || ( -e "$storage_pending" && ! -f "$storage_pending" ) ]]; then
+    echo "Invalid Leither storage setup marker at $storage_pending." >&2
+    exit 1
+  fi
+  if [[ -f "$storage_pending" ]]; then new_node=1; fi
   # Validate the selected node's port and check availability before starting it.
   # The process and HTTP version are checked again after startup.
   node_port=$(node -e '
@@ -556,15 +642,17 @@ try {
       echo "Initializing the new private Leither node at $LEITHER_WORKDIR..."
       (umask 077; cd "$LEITHER_WORKDIR" && ./Leither init) || { echo "Leither initialization failed; its files were retained at $LEITHER_WORKDIR." >&2; exit 1; }
     fi
-    if [[ ! -s "$LEITHER_WORKDIR/SystemVars.json" || ! -s "$LEITHER_WORKDIR/hostkey.cfg" ]]; then
-      echo "Leither initialization did not create its configuration and node key. Inspect $LEITHER_WORKDIR before retrying." >&2
+    if [[ ! -s "$LEITHER_WORKDIR/SystemVars.json" && ! -s "$LEITHER_WORKDIR/systemvars.json" ]]; then
+      echo "Leither initialization did not create its settings. Inspect $LEITHER_WORKDIR before retrying." >&2
       exit 1
     fi
-    configure_new_node_storage || {
-      echo "Leither storage setup failed; the initialized node was retained but not started." >&2
-      exit 1
-    }
-    rm -f -- "$storage_pending" || { echo "Could not finish the new-node storage configuration." >&2; exit 1; }
+    choose_new_node_storage || exit 1
+    # init creates only SystemVars. The first run creates the node key and
+    # datastore; a stopped retry may already have that datastore available.
+    if [[ -e "$LEITHER_WORKDIR/ds/config" ]]; then
+      configure_new_node_storage || exit 1
+      rm -f -- "$storage_pending"
+    fi
   elif [[ -n "$STORAGE_MAX_GB" ]]; then
     echo "--storage-max-gb is only valid when this installer creates a new Leither node." >&2
     echo "Change an existing node's limit from LePan Settings instead." >&2
@@ -574,20 +662,7 @@ try {
   echo "Installing the Leither system service at $LEITHER_WORKDIR..."
   configure_leither_service stopped
   LEITHER_SERVICE_BOOTSTRAPPED=1
-  local ready=0 attempt response
-  for attempt in {1..30}; do
-    response=$(curl --noproxy '*' -fsS --max-time 2 "http://127.0.0.1:$node_port/getvar?name=ver" 2>/dev/null || true)
-    if leither_service_owns_process && node -e 'try { process.exit(JSON.parse(process.argv[1]).replace(/^V/, "") === process.argv[2] ? 0 : 1); } catch { process.exit(1); }' "$response" "$node_version"; then
-      ready=1
-      break
-    fi
-    sleep 1
-  done
-  if (( ! ready )); then
-    echo "Leither did not become ready. Its files and service were retained." >&2
-    echo "Linux: journalctl -u lifedrive-leither.service. macOS: $LEITHER_WORKDIR/leither-service.log." >&2
-    exit 1
-  fi
+  wait_for_leither "$node_version" "$node_port" || exit 1
   echo "Leither V$node_version is ready on port $node_port. Continuing LePan installation."
 }
 
@@ -596,12 +671,6 @@ if [[ -z "$running_pids" ]]; then
   bootstrap_leither
   running_pids=$(find_leither_pids)
 fi
-if [[ -n "$STORAGE_MAX_GB" ]] && (( ! LEITHER_SERVICE_BOOTSTRAPPED )); then
-  echo "--storage-max-gb is only valid when this installer creates a new Leither node." >&2
-  echo "Change an existing node's limit from LePan Settings instead." >&2
-  exit 2
-fi
-
 running_roots=()
 while IFS= read -r leither_pid; do
   [[ "$leither_pid" =~ ^[0-9]+$ ]] || continue
@@ -684,6 +753,19 @@ fi
 echo "Found running Leither service at $LEITHER_WORKDIR"
 leither_version "$LEITHER_WORKDIR" >/dev/null || exit 1
 
+storage_pending="$LEITHER_WORKDIR/.lifedrive-storage-pending"
+if [[ -L "$storage_pending" ]]; then
+  echo "LePan installation stopped: the storage setup marker must not be a symbolic link." >&2
+  exit 1
+fi
+if [[ -f "$storage_pending" ]]; then
+  finish_new_node_storage || exit 1
+elif [[ -n "$STORAGE_MAX_GB" ]] && (( ! LEITHER_SERVICE_BOOTSTRAPPED )); then
+  echo "--storage-max-gb is only valid when this installer creates a new Leither node." >&2
+  echo "Change an existing node's limit from LePan Settings instead." >&2
+  exit 2
+fi
+
 if (( LEITHER_SERVICE_ONLY )); then
   if (( ! LEITHER_SERVICE_BOOTSTRAPPED )); then configure_leither_service running; fi
   configure_macos_leither_firewall
@@ -759,14 +841,60 @@ if (( MANAGEMENT_ONLY )); then
   exit 0
 fi
 
+# Existing installations keep their paths (including publisher and service
+# configuration). Fresh installs group application payloads under lepan while
+# retaining the application name used to derive its published identity.
+lepan_dir="$LEITHER_WORKDIR/lepan"
+if [[ ! -d "$LEITHER_WORKDIR/lifeDrive" || -L "$LEITHER_WORKDIR/lifeDrive" ]]; then
+  if [[ -L "$lepan_dir" || ( -e "$lepan_dir" && ! -d "$lepan_dir" ) ]]; then
+    echo "LePan installation stopped: $lepan_dir must be a regular directory." >&2
+    exit 1
+  fi
+  if [[ -L "$lepan_dir/.installer-layout-v1" || ( -e "$lepan_dir/.installer-layout-v1" && ! -f "$lepan_dir/.installer-layout-v1" ) ]]; then
+    echo "LePan installation stopped: invalid layout marker in $lepan_dir." >&2
+    exit 1
+  fi
+  if [[ -d "$lepan_dir" && ! -f "$lepan_dir/.installer-layout-v1" && -n "$(ls -A "$lepan_dir")" ]]; then
+    echo "LePan installation stopped: $lepan_dir contains files from an unknown installation." >&2
+    exit 1
+  fi
+  # Stable links keep existing version readers and identity-service paths valid.
+  # Refuse conflicting files or links before changing either payload.
+  for payload_name in lifeDrive lifedrive-identity; do
+    legacy_path="$LEITHER_WORKDIR/$payload_name"
+    payload_path="$lepan_dir/$payload_name"
+    if [[ -L "$payload_path" || ( -e "$payload_path" && ! -d "$payload_path" ) ]]; then
+      echo "LePan installation stopped: unexpected payload at $payload_path." >&2
+      exit 1
+    fi
+    if [[ -L "$legacy_path" ]]; then
+      if [[ "$(readlink "$legacy_path")" != "lepan/$payload_name" ]]; then
+        echo "LePan installation stopped: $legacy_path points outside the managed LePan layout." >&2
+        exit 1
+      fi
+    elif [[ -e "$legacy_path" ]]; then
+      echo "LePan installation stopped: conflicting installation at $legacy_path." >&2
+      exit 1
+    fi
+  done
+  (umask 077; mkdir -p "$lepan_dir"; : > "$lepan_dir/.installer-layout-v1")
+  for payload_name in lifeDrive lifedrive-identity; do
+    (umask 077; mkdir -p "$lepan_dir/$payload_name")
+    if [[ ! -L "$LEITHER_WORKDIR/$payload_name" ]]; then
+      ln -s "lepan/$payload_name" "$LEITHER_WORKDIR/$payload_name"
+    fi
+  done
+  echo "LePan application files: $lepan_dir"
+fi
+
 backup_dir="$LEITHER_WORKDIR/deploy-backups/lifedrive-$(date -u +%Y%m%dT%H%M%SZ)"
-if [[ -d "$LEITHER_WORKDIR/lifeDrive" ]]; then
-  mkdir -p "$backup_dir"
-  if [[ -d "$LEITHER_WORKDIR/lifeDrive" ]]; then cp -R "$LEITHER_WORKDIR/lifeDrive" "$backup_dir/"; fi
+if [[ -d "$LEITHER_WORKDIR/lifeDrive" && -n "$(ls -A "$LEITHER_WORKDIR/lifeDrive/")" ]]; then
+  mkdir -p "$backup_dir/lifeDrive"
+  # Copy the contents rather than backing up only the compatibility link.
+  cp -R "$LEITHER_WORKDIR/lifeDrive/." "$backup_dir/lifeDrive/"
   echo "Previous LePan files backed up to $backup_dir"
 fi
 
-mkdir -p "$LEITHER_WORKDIR/lifeDrive"
 # Remove the previous top-level JavaScript MApp entries before installing the
 # Go dispatcher. Web assets below their hashed asset directory are retained.
 old_entry_files=(
