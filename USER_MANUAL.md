@@ -151,9 +151,9 @@ like a key: do not post it, email it to others, or paste it anywhere public.
 
 Within ten minutes of the invitation being printed:
 
-1. Scan the installer’s final QR code or the QR image that opens automatically. The saved image path is a fallback for remote sessions or computers without an image viewer. If you used the standalone shell installer, copy the whole invitation block instead.
+1. Leave the installer’s final QR code or the QR image that opens automatically visible on the computer. The saved image path is a fallback for remote sessions or computers without an image viewer. If you used the standalone shell installer, copy the whole invitation block instead.
 2. Open LifeDrive on the phone. The **Set up your LifeDrive** screen opens by itself (or open **Settings → Set up users**).
-3. Enter **Your name** and a name for this device.
+3. Review **Your name** and the name for this device. Android fills in **Owner** and the phone model; you can change either.
 4. Tap **Scan QR code** and point the phone at the terminal or saved image. You can also use **Paste node identity** or **Choose identity file**.
 
 The phone creates its own device key, claims the node, and opens your personal

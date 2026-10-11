@@ -2,6 +2,17 @@
 
 This public repository contains versioned LifeDrive installation assets built from the private LifeAlbum source repository.
 
+## Version 0.7.70
+
+The account service now serializes login renewal for each user, preventing
+simultaneous requests from overwriting temporary login files. It also discovers
+Leither's current local service port before each request, verifies the node's
+identity before using a changed endpoint, and follows port changes without an
+account-service restart. The existing mobile login protocol and stored data
+formats are unchanged.
+
+Both fixes are included in the packaged service for Linux, macOS and Windows.
+
 For an ordinary Windows or macOS installation, download the matching package from LePan's Cloudflare-backed download URLs:
 
 - **Windows 10/11 or Windows Server (x64):** [LePan-Setup-windows-x64.exe](https://lepan.org/download/LePan-Setup-windows-x64.exe)
