@@ -471,7 +471,10 @@ if ($Upgrade) {
         }
         throw
     }
+    Write-Host ""
+    Write-Host "------------------------------------------------------------"
     Write-Host "LePan Windows upgrade complete. Leither was not restarted."
+    Write-Host "Node: $([Environment]::MachineName)"
     $pairingLauncher = if ($env:LIFEDRIVE_PAIRING_COMMAND) { $env:LIFEDRIVE_PAIRING_COMMAND } else { "npx --yes @inoku/lepan@latest" }
     Write-Host "Saved pairing files, if retained: $root\.lifedrive-household\lepan-pairing-*.json (with matching .png images)."
     Write-Host ""

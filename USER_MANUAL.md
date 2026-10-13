@@ -147,7 +147,7 @@ This keeps what step 2.1 installed and adds users and phones:
 The setup invitation is what makes a phone the first user of this node. Treat it
 like a key: do not post it, email it to others, or paste it anywhere public.
 
-If the terminal is too narrow for the QR, widen it to the number of columns
+If the terminal is too small for the QR, resize it to the columns and rows
 printed by setup, then run the printed `--show-qr` command. Over SSH, run the
 command on the node in that same terminal. It displays the saved code without
 installing or upgrading again. You can also open the saved PNG image or transfer
@@ -157,6 +157,11 @@ For npm installations:
 ```bash
 npx --yes @inoku/lepan@latest --show-qr '/path/to/lepan-pairing.json'
 ```
+
+This command shows only the QR and a privacy reminder. If it cannot fit, it prints
+the required size and a width marker so you can resize and retry. It does not
+repeat the setup instructions or create another image file. Terminal QR codes use
+a smaller encoding; the saved PNG retains stronger error correction.
 
 The Windows and macOS desktop installers print an equivalent command using their
 bundled runtime. Redisplaying a code does not renew it: setup and reconnect
@@ -224,8 +229,8 @@ To install a specific release instead of the latest, name it, for example
 so a version number always means the same files.
 
 Upgrade output shows the existing identity path or saved-pairing directory and a
-help command. When a QR cannot fit, it shows the required terminal width and the
-`--show-qr` command to run after widening the window. Use `--help` for file import,
+help command. When a QR cannot fit, it shows the required terminal size and the
+`--show-qr` command to run after resizing the window. Use `--help` for file import,
 identity expiry, and device-management instructions. Household
 upgrades preserve paired phones and do not issue or renew an invitation; to
 reconnect to an existing household account, run `--recover-device` with its name

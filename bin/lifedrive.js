@@ -23,6 +23,31 @@ function quoteArgument(value) {
     : `'${value.replace(/'/g, "'\\''")}'`;
 }
 
+function pairingQrPayload(pairing) {
+  const legacy = pairing.type === "lifedrive-device-identity";
+  // Preserve every field consumed by the existing mobile importers. The full
+  // original identity stays in the JSON file, including unused metadata.
+  const fields = legacy ? [
+    "type", "version", "app_id", "uid", "label", "public_username", "key_type",
+    "public_key", "private_key", "signer_info", "node_id",
+  ] : [
+    "type", "version", "app_id", "node_id", "endpoint", "transport",
+    "transport_key", "certificate_sha256", "request_id", "secret",
+  ];
+  const qr = Object.fromEntries(fields.filter(key => Object.hasOwn(pairing, key)).map(key => [key, pairing[key]]));
+  if (legacy && typeof qr.private_key === "string" && typeof qr.public_key === "string") {
+    // sodium's 64-byte secret includes a duplicate public key. Both Android and
+    // iOS already accept the 32-byte seed and verify the derived public key.
+    const secret = Buffer.from(qr.private_key, "base64url");
+    const publicKey = Buffer.from(qr.public_key, "base64url");
+    if (secret.length === 64 && publicKey.length === 32 && secret.subarray(32).equals(publicKey)) {
+      qr.private_key = secret.subarray(0, 32).toString("base64url");
+    }
+    secret.fill(0);
+  }
+  return JSON.stringify(qr);
+}
+
 function openPairingImage(imagePath) {
   // A remote server must not open a window in another user's desktop session.
   if (process.env.SSH_CONNECTION || process.env.SSH_TTY) return false;
@@ -48,6 +73,21 @@ function openPairingImage(imagePath) {
   return !result.error && result.status === 0;
 }
 
+function printTerminalQr(modules, margin) {
+  process.stdout.write("\n");
+  // Explicit colors and a four-module quiet zone work on light/dark themes.
+  const dark = (x, y) => x >= 0 && y >= 0 && x < modules.size && y < modules.size && modules.get(y, x);
+  let terminal = "";
+  for (let y = -margin; y < modules.size + margin; y += 2) {
+    terminal += "\x1b[30;47m";
+    for (let x = -margin; x < modules.size + margin; x += 1) {
+      terminal += dark(x, y) ? (dark(x, y + 1) ? "█" : "▀") : (dark(x, y + 1) ? "▄" : " ");
+    }
+    terminal += "\x1b[0m\n";
+  }
+  process.stdout.write(terminal);
+}
+
 async function showPairingCode(resultPath, savedFile = false) {
   if (!fs.existsSync(resultPath)) return;
   const compact = savedFile || (process.argv.includes("--upgrade") && !process.argv.includes("--household"));
@@ -60,16 +100,7 @@ async function showPairingCode(resultPath, savedFile = false) {
   const directory = savedFile ? path.dirname(resultPath) : fs.readFileSync(`${resultPath}.directory`, "utf8");
   if (!path.isAbsolute(directory)) throw new Error("Invalid pairing image directory");
   const payload = JSON.stringify(pairing);
-  // Only encode fields consumed by the existing Android and iOS setup parsers.
-  // The node enforces expiry and returns account details after a successful claim.
-  // Keep the full invitation in the import file, and leave legacy identities intact.
-  // iOS still requires certificate_sha256 even when Leither transport uses a key.
-  const qrPayload = pairing.type !== "lifedrive-device-identity"
-    ? JSON.stringify(Object.fromEntries([
-      "type", "version", "app_id", "node_id", "endpoint", "transport",
-      "transport_key", "certificate_sha256", "request_id", "secret",
-    ].filter(key => Object.hasOwn(pairing, key)).map(key => [key, pairing[key]])))
-    : payload;
+  const qrPayload = pairingQrPayload(pairing);
   const basename = path.join(directory, `lepan-pairing-${randomUUID()}`);
   const imagePath = `${basename}.png`;
   const identityPath = savedFile ? resultPath : `${basename}.json`;
@@ -95,12 +126,21 @@ async function showPairingCode(resultPath, savedFile = false) {
   let modules;
   try {
     const QRCode = require("qrcode");
-    const png = await QRCode.toBuffer(qrPayload, options);
-    modules = QRCode.create(qrPayload, options).modules;
+    // A clean terminal can use lower error correction to reduce its width.
+    // Keep medium correction and the full quiet zone in the saved PNG.
+    modules = QRCode.create(qrPayload, { ...options, errorCorrectionLevel: "L" }).modules;
     // Unique names and exclusive creation avoid overwriting another device's
     // code or following a pre-existing symlink. Keep this outside the app bundle.
-    fs.writeFileSync(imagePath, png, { flag: "wx", mode: 0o600 });
+    if (!savedFile) {
+      const png = await QRCode.toBuffer(qrPayload, options);
+      fs.writeFileSync(imagePath, png, { flag: "wx", mode: 0o600 });
+    }
   } catch {
+    if (savedFile) {
+      process.stderr.write("The QR code could not be displayed. Open the saved QR image instead.\n");
+      process.exitCode = 1;
+      return;
+    }
     // The child no longer prints secrets. Preserve an importable fallback
     // before runInstaller removes the temporary handoff directory.
     if (compact) {
@@ -121,21 +161,33 @@ async function showPairingCode(resultPath, savedFile = false) {
     }
     return;
   }
-  // Never hide a terminal code just because the window is short. Open the PNG
-  // automatically when the whole code cannot be visible at once, and put the
-  // terminal code last so subsequent instructions cannot scroll it away.
+  // Only print a terminal QR when the complete code fits. Otherwise, explain
+  // the required size and offer the saved image instead of a wrapped/clipped QR.
   const width = modules.size + options.margin * 2;
+  const widthMarker = `|${"-".repeat(width - 1)}|`;
   const height = Math.ceil(width / 2);
   const fitsWidth = process.stdout.isTTY && process.stdout.columns > width;
   const fitsScreen = fitsWidth && process.stdout.rows >= height + 3;
+  // Redisplaying is deliberately quiet and creates no additional files.
+  if (savedFile) {
+    if (!process.stdout.isTTY) {
+      process.stdout.write("Run --show-qr in an interactive terminal.\n");
+    } else if (!fitsScreen) {
+      process.stdout.write(`Terminal too small for the QR code: ${width + 1} columns and ${height + 3} rows needed.\n${widthMarker}\nResize the terminal, then run the same command again.\n`);
+    } else {
+      process.stdout.write("Keep it private.\n");
+      process.stdout.write(expiry);
+      printTerminalQr(modules, options.margin);
+    }
+    return;
+  }
   const imageOpened = !fitsScreen && openPairingImage(imagePath);
   if (compact) {
-    if (savedFile) process.stdout.write(`\nIdentity file: ${identityPath}\nKeep it private.\n`);
     process.stdout.write("\nHow to pair your phone:\nOpen LePan > Settings > Set up users > Scan QR code.\n");
     if (imageOpened) process.stdout.write("\nThe QR image has opened automatically.\n");
-    if (!fitsWidth) {
+    if (!fitsScreen) {
       process.stdout.write(process.stdout.isTTY
-        ? `\nThis terminal is too narrow for the QR code. To display it here, widen the terminal\nto at least ${width + 1} columns, then run:\n`
+        ? `\nThe QR code needs ${width + 1} columns and ${height + 3} rows. Resize this terminal or open the saved image.\n${widthMarker}\nTo display it here, resize and run:\n`
         : "\nTo display the QR code, run in an interactive terminal:\n");
       process.stdout.write(`\n  ${pairingCommand} --show-qr ${quoteArgument(identityPath)}\n`);
     }
@@ -147,13 +199,11 @@ async function showPairingCode(resultPath, savedFile = false) {
     process.stdout.write("Open LePan > Settings > Set up users > Scan QR code.\n");
     process.stdout.write(imageOpened
       ? "The QR image has opened automatically. Scan it with your phone.\n"
-      : fitsWidth ? "Scan the QR code below with your phone.\n"
+      : fitsScreen ? "Scan the QR code below with your phone.\n"
       : process.stdout.isTTY
-        ? "This terminal is too narrow for the QR code. You can open the saved QR image.\n"
+        ? `The QR code needs ${width + 1} columns and ${height + 3} rows. Resize this terminal or open the saved image.\n`
         : "A QR code cannot be displayed in this output. Run the --show-qr command below in an interactive terminal, or open the saved QR image.\n");
-    if (!fitsWidth && process.stdout.isTTY) {
-      process.stdout.write(`To display it here, widen the terminal to at least ${width + 1} columns,\nthen run the --show-qr command below.\n`);
-    }
+    if (!fitsScreen && process.stdout.isTTY) process.stdout.write(`${widthMarker}\n`);
     process.stdout.write(`${privacyNote}\n`);
     process.stdout.write(expiry);
     process.stdout.write(`\nSaved QR image: ${imagePath}\n`);
@@ -166,19 +216,8 @@ async function showPairingCode(resultPath, savedFile = false) {
       process.stdout.write("Redisplaying the QR does not extend the invitation's ten-minute expiry.\n");
     }
   }
-  if (fitsWidth) {
-    process.stdout.write("\n");
-    // Explicit colors and a four-module quiet zone work on light/dark themes.
-    const dark = (x, y) => x >= 0 && y >= 0 && x < modules.size && y < modules.size && modules.get(y, x);
-    let terminal = "";
-    for (let y = -options.margin; y < modules.size + options.margin; y += 2) {
-      terminal += "\x1b[30;47m";
-      for (let x = -options.margin; x < modules.size + options.margin; x += 1) {
-        terminal += dark(x, y) ? (dark(x, y + 1) ? "█" : "▀") : (dark(x, y + 1) ? "▄" : " ");
-      }
-      terminal += "\x1b[0m\n";
-    }
-    process.stdout.write(terminal);
+  if (fitsScreen) {
+    printTerminalQr(modules, options.margin);
   }
 }
 
@@ -262,8 +301,8 @@ async function main() {
   Example:
     ${pairingCommand} --show-qr '/path/to/lepan-pairing.json'
 
-Run pairing commands on the computer running Leither. If the terminal is too
-narrow, widen it to the printed number of columns and run --show-qr again.
+Run pairing commands on the computer running Leither. If the QR does not fit,
+resize to the printed columns and rows and run --show-qr again.
 You can also open the saved PNG, or transfer the JSON privately to your phone
 and use LePan > Settings > Set up users > Choose identity file.
 
