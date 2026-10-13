@@ -32,15 +32,24 @@ Installer options:
   --household              Set up household users or renew an unclaimed setup invitation.
   --recover-device USER    Reconnect a phone to an existing account, using its name or user ID.
   --household-config FILE   Install mobile-led household setup using a private service configuration.
+  --add-device LABEL        Create a separate device identity (legacy browser-owner setup, Linux/macOS).
 
 Setup options are forwarded to lifeDrive-setup.sh. Common examples:
   --registry-url URL
   --publisher-key FILE
-  --add-device LABEL
   --identity-out FILE
   --list-devices
   --revoke-device UID
   --skip-domain
+
+Create an identity for another phone or browser:
+  npx --yes @inoku/lepan@latest --add-device "My iPhone"
+
+LABEL is a name you choose to recognize the device, such as "My iPhone".
+Each device gets its own key and can be revoked independently. The npm installer
+displays the new identity's QR code and file path for pairing.
+Run this command on the computer running Leither.
+For household accounts, invite another device from Settings > My devices on a paired phone.
 EOF
 }
 

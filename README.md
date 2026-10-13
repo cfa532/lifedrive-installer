@@ -99,6 +99,27 @@ LifeDrive requires Leither V0.24.11 or newer. Linux/macOS browser-owner setup cr
 
 After successful npm setup, the installer displays the QR code at the end of its output whenever the terminal is wide enough. If the whole code cannot fit on screen, it automatically opens the full-size QR image in the computer's image viewer. In the iPhone or Android app, open **Settings → Set up users → Scan QR code** and scan the displayed code. A private `lepan-pairing-<id>.png` is also saved, with its path printed as a fallback for remote sessions or computers without an image viewer. A private `.json` invitation is saved alongside it for apps without a setup scanner: transfer that file to the phone and use **Choose identity file**. These files are saved in the Leither root on Linux/macOS and its private `.lifedrive-household` directory on Windows. Household invitations expire ten minutes after creation; legacy identity codes contain a device private key, so keep them private and delete the transfer copies after pairing. Legacy `--add-device` and `--upgrade` also produce a code when an identity is available; household upgrades preserve existing pairings without issuing new invitations.
 
+If the terminal is too narrow, the output gives the required width and an exact
+command to redisplay the saved code after widening the window. Run it on the node
+when connected over SSH. For npm installations, the command has this form:
+
+```bash
+npx --yes @inoku/lepan@latest --show-qr '/path/to/lepan-pairing.json'
+```
+
+This displays the saved code without installing, upgrading, or changing device
+authorization. Desktop packages print a command using their private Node runtime.
+Redisplaying an invitation does **not** reset its ten-minute expiry; output shows
+its expiry in UTC and how to renew it. A legacy `lifedrive-device-identity` file
+is a persistent device key and has no ten-minute expiry; it remains usable while
+authorized. Keep its original safe and offline, and delete transfer copies after
+pairing. Upgrades keep the output brief: the existing identity path or saved-pairing
+directory, the QR and file paths when available, and a help command. If the QR
+cannot fit, the output gives the required width and the command to redisplay it.
+Use `--help` for expiry, file import, and account reconnection instructions.
+Initial setup's local browser links are labeled with the node's detected LAN
+interfaces; these are node addresses, not router or gateway addresses.
+
 ### Renew an expired first-phone invitation
 
 Run this again **on the computer running Leither**:

@@ -147,6 +147,25 @@ This keeps what step 2.1 installed and adds users and phones:
 The setup invitation is what makes a phone the first user of this node. Treat it
 like a key: do not post it, email it to others, or paste it anywhere public.
 
+If the terminal is too narrow for the QR, widen it to the number of columns
+printed by setup, then run the printed `--show-qr` command. Over SSH, run the
+command on the node in that same terminal. It displays the saved code without
+installing or upgrading again. You can also open the saved PNG image or transfer
+the saved JSON privately to your phone and use **Choose identity file**.
+For npm installations:
+
+```bash
+npx --yes @inoku/lepan@latest --show-qr '/path/to/lepan-pairing.json'
+```
+
+The Windows and macOS desktop installers print an equivalent command using their
+bundled runtime. Redisplaying a code does not renew it: setup and reconnect
+invitations expire ten minutes after creation. The output shows the expiry in
+UTC. Older browser-owner installations use a `lifedrive-device-identity` file
+containing a persistent device private key; that identity has no ten-minute
+expiry and remains usable while authorized. Keep its original safe and offline;
+delete transfer copies after pairing.
+
 ### 2.3 Create the first user from your phone
 
 Within ten minutes of the invitation being printed:
@@ -203,6 +222,14 @@ npx --yes @inoku/lepan@latest --upgrade
 To install a specific release instead of the latest, name it, for example
 `npx --yes @inoku/lepan@0.7.35 --upgrade`. Release versions are never reused,
 so a version number always means the same files.
+
+Upgrade output shows the existing identity path or saved-pairing directory and a
+help command. When a QR cannot fit, it shows the required terminal width and the
+`--show-qr` command to run after widening the window. Use `--help` for file import,
+identity expiry, and device-management instructions. Household
+upgrades preserve paired phones and do not issue or renew an invitation; to
+reconnect to an existing household account, run `--recover-device` with its name
+or user ID on the node. For another device, use **My devices** on a paired phone.
 
 The installer saves the previous application files to a backup directory, prints
 where, and then:
