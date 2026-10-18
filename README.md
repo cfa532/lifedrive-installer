@@ -97,9 +97,9 @@ The Linux/macOS legacy browser-owner setup uses the built-in AV1 registration en
 
 LifeDrive requires Leither V0.24.11 or newer. Linux/macOS browser-owner setup creates a separate Ed25519 `sodiumv2` identity for the primary browser. Windows prints a private ten-minute invitation for the first paired phone; later users and devices are managed from a paired device.
 
-After successful npm setup, the installer displays the QR code at the end of its output whenever the complete code fits in the terminal. If the whole code cannot fit on screen, it automatically opens the full-size QR image in the computer's image viewer. In the iPhone or Android app, open **Settings → Set up users → Scan QR code** and scan the displayed code. A private `lepan-pairing-<id>.png` is also saved, with its path printed as a fallback for remote sessions or computers without an image viewer. A private `.json` invitation is saved alongside it for apps without a setup scanner: transfer that file to the phone and use **Choose identity file**. These files are saved in the Leither root on Linux/macOS and its private `.lifedrive-household` directory on Windows. Household invitations expire ten minutes after creation; legacy identity codes contain a device private key, so keep them private and delete the transfer copies after pairing. Legacy `--add-device` and `--upgrade` also produce a code when an identity is available; household upgrades preserve existing pairings without issuing new invitations.
+After successful npm setup, the installer displays the QR code at the end of its output whenever the terminal is wide enough, regardless of its height. You can scroll vertically. If the terminal is too narrow, it automatically opens the full-size QR image in the computer's image viewer. In the iPhone or Android app, open **Settings → Set up users → Scan QR code** and scan the displayed code. A private `lepan-pairing-<id>.png` is also saved, with its path printed as a fallback for remote sessions or computers without an image viewer. A private `.json` invitation is saved alongside it for apps without a setup scanner: transfer that file to the phone and use **Choose identity file**. These files are saved in the Leither root on Linux/macOS and its private `.lifedrive-household` directory on Windows. Household invitations expire ten minutes after creation; legacy identity codes contain a device private key, so keep them private and delete the transfer copies after pairing. Legacy `--add-device` and `--upgrade` also produce a code when an identity is available; household upgrades preserve existing pairings without issuing new invitations.
 
-If the terminal is too small, the output gives the required columns and rows,
+If the terminal is too narrow, the output gives the required number of columns,
 a width marker, and a command to redisplay the code after resizing. Run it on the node
 when connected over SSH. For npm installations, the command has this form:
 
@@ -107,7 +107,7 @@ when connected over SSH. For npm installations, the command has this form:
 npx --yes @inoku/lepan@latest --show-qr '/path/to/lepan-pairing.json'
 ```
 
-Redisplaying shows only the QR and a privacy reminder, or a short size warning
+Redisplaying shows only the QR and a privacy reminder, or a short width warning
 and width marker if it cannot fit. It does not repeat the setup instructions or
 create another image file. Terminal QR codes use a smaller payload and lower
 error correction; the saved PNG keeps medium error correction. The full original
@@ -160,9 +160,9 @@ private and expires in ten minutes; rerun the same command if it expires before
 being claimed. The account service briefly restarts, while Leither keeps running.
 Normal phone-to-phone invitations still require device-manager approval.
 
-First-account pairing prepares the file catalog before opening Files and adds
-`Getting started with LePan.txt` once. The guide can be renamed or deleted and is
-not duplicated when another phone joins. First setup also grants each account
+First-account pairing prepares the file catalog before opening Files. The phone app
+then adds `LePan Guide.md`, and a copy in the phone's language when LePan is translated
+into it. A guide already in Files is not added again. First setup also grants each account
 write access only to its own node staging directory when Leither requires it.
 
 An existing installation is backed up before replacement. The explicit `--upgrade` path requires the saved application and key-auth owner state before changing files, synchronizes the same published application MID, and does not rerun device or domain setup. This release intentionally does not migrate the earlier password-owner prototype. Application files are active only after Leither advances the application from `cur` to `last`; a publication timeout leaves the prior `last` version serving users.

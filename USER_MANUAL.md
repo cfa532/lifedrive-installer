@@ -147,7 +147,7 @@ This keeps what step 2.1 installed and adds users and phones:
 The setup invitation is what makes a phone the first user of this node. Treat it
 like a key: do not post it, email it to others, or paste it anywhere public.
 
-If the terminal is too small for the QR, resize it to the columns and rows
+If the terminal is too narrow for the QR, widen it to the number of columns
 printed by setup, then run the printed `--show-qr` command. Over SSH, run the
 command on the node in that same terminal. It displays the saved code without
 installing or upgrading again. You can also open the saved PNG image or transfer
@@ -158,8 +158,9 @@ For npm installations:
 npx --yes @inoku/lepan@latest --show-qr '/path/to/lepan-pairing.json'
 ```
 
-This command shows only the QR and a privacy reminder. If it cannot fit, it prints
-the required size and a width marker so you can resize and retry. It does not
+This command shows only the QR and a privacy reminder. There is no minimum
+height; scroll vertically as needed. If the terminal is too narrow, it prints
+the required width and a width marker so you can widen it and retry. It does not
 repeat the setup instructions or create another image file. Terminal QR codes use
 a smaller encoding; the saved PNG retains stronger error correction.
 
@@ -181,10 +182,12 @@ Within ten minutes of the invitation being printed:
 4. Tap **Scan QR code** and point the phone at the terminal or saved image. You can also use **Paste node identity** or **Choose identity file**.
 
 The phone creates its own device key, claims the node, and opens your personal
-drive after its file list is ready. Files contains **Getting started with LePan.txt**,
-a short guide to Files, Backups, connecting other phones, and keeping access to
-your account. It is added once per account; reconnecting a phone does not duplicate
-it, and deleting or renaming it does not cause it to return. You are now the node's first user and its **administrator**, and
+drive after its file list is ready. When a phone first pairs, the app adds **LePan Guide.md**
+to Files, a short guide to the tabs, photo backup, sharing, adding devices and keeping
+the computer on. If LePan is translated into the phone's language (简体中文, 繁體中文 or
+日本語) it adds a copy in that language too. A guide already in Files is not added
+again, so another phone does not duplicate it; one you delete comes back the next
+time a phone pairs. Tap a Markdown file in Files to read it formatted. You are now the node's first user and its **administrator**, and
 this phone is a **device manager**.
 
 You can close the setup screen without pairing to look around the app. Tapping an
@@ -229,7 +232,7 @@ To install a specific release instead of the latest, name it, for example
 so a version number always means the same files.
 
 Upgrade output shows the existing identity path or saved-pairing directory and a
-help command. When a QR cannot fit, it shows the required terminal size and the
+help command. When a QR cannot fit, it shows the required terminal width and the
 `--show-qr` command to run after resizing the window. Use `--help` for file import,
 identity expiry, and device-management instructions. Household
 upgrades preserve paired phones and do not issue or renew an invitation; to

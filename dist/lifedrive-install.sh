@@ -535,7 +535,7 @@ wait_for_leither() {
   local version="$1" port="$2" previous_pid="${3:-}" attempt response current_pid
   for attempt in {1..30}; do
     current_pid=$(leither_service_pid || true)
-    response=$(curl --noproxy '*' -fsS --max-time 2 "http://127.0.0.1:$port/getvar?name=ver" 2>/dev/null || true)
+    response=$(curl -q --noproxy '*' -fsS --max-time 2 "http://127.0.0.1:$port/getvar?name=ver" 2>/dev/null || true)
     if [[ -z "$previous_pid" || "$current_pid" != "$previous_pid" ]] &&
        leither_service_owns_process &&
        node -e 'try { process.exit(JSON.parse(process.argv[1]).replace(/^V/, "") === process.argv[2] ? 0 : 1); } catch { process.exit(1); }' "$response" "$version"; then
@@ -799,7 +799,10 @@ if [[ -s "$LEITHER_WORKDIR/lifeDrive.owner" && "$(sed -n '1p' "$LEITHER_WORKDIR/
   echo "This key-auth release intentionally requires a fresh LePan owner state." >&2
   exit 1
 fi
-if [[ -s "$LEITHER_WORKDIR/lifeDrive.owner" && -z "$HOUSEHOLD_CONFIG" ]] && (( ! UPGRADE_ONLY && ! MANAGEMENT_ONLY )); then
+# --recover-device reconnects an account of a household that already exists; it creates
+# no owner, so key-auth state left behind from before the node became a household must
+# not stop it (minipc kept its lifeDrive.owner and answered "an initialized LePan exists").
+if [[ -s "$LEITHER_WORKDIR/lifeDrive.owner" && -z "$HOUSEHOLD_CONFIG" && -z "$RECOVER_DEVICE" ]] && (( ! UPGRADE_ONLY && ! MANAGEMENT_ONLY )); then
   echo "LePan installation stopped: an initialized LePan already exists at $LEITHER_WORKDIR." >&2
   echo "Use --upgrade for application files or --add-device for another browser." >&2
   exit 1

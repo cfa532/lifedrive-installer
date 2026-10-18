@@ -17,10 +17,71 @@ const pairingCommand = path.basename(path.resolve(__dirname, "..")) === "package
   ? `${process.platform === "win32" ? "& " : ""}${quoteArgument(process.execPath)} ${quoteArgument(__filename)}`
   : `npx --yes @inoku/lepan@${/^\d+\.\d+\.\d+$/.test(packageVersion) ? packageVersion : "latest"}`;
 
+// Opt-in: print the smaller device QR that only newer LePan apps can read. Older
+// apps accept the full identity QR, so that stays the default. The flag belongs
+// to this wrapper; the shell and PowerShell installers do not know it.
+const compactQr = process.argv.includes("--compact-qr");
+if (compactQr) process.argv = process.argv.filter(argument => argument !== "--compact-qr");
+const qrFlag = compactQr ? " --compact-qr" : "";
+
 function quoteArgument(value) {
   return process.platform === "win32"
     ? `'${value.replace(/'/g, "''")}'`
     : `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+// A device identity's signer_info is a Go-gob certificate of about 770 characters
+// that repeats the device ID and public key, plus constant type metadata. Only the
+// signature and the certificate name are unique, so the compact QR carries those and
+// the app rebuilds the same bytes. buildSignerInfo must stay identical to
+// CompactIdentity in the Android and iOS apps.
+const CERT_PREFIX = Buffer.from("307f030101085369676e496e666f01ff80000102010c426173655369676e496e666f01ff8200010444617461010c0000002eff810301010c426173655369676e496e666f01ff82000101010e426173655369676e496e666f563101ff8400000065ff830301010e426173655369676e496e666f563101ff8400010601095369676e6174757265010a0001085369676e65724944010c00010a5369676e6572496e666f010a0001074b657954797065010c00010756657273696f6e0106000102504b010a000000", "hex");
+const CERT_KEY_PREFIX = Buffer.from("0b0c0008736f6469756d76322f7f0301010f536f6469756d4b657950616972563201ff80000101010d536f6469756d4b65795061697201ff8200000029ff810301010d536f6469756d4b65795061697201ff820001020102536b010a000102506b010a00000027ff80010220", "hex");
+const CERT_BODY_HEAD = Buffer.from("ff8001010140", "hex");
+const CERT_AFTER_ID = Buffer.concat([Buffer.from("0208", "hex"), Buffer.from("sodiumv2"), Buffer.from("0101000001", "hex")]);
+// Go gob unsigned integer: one byte below 128, else a byte-count marker and the
+// big-endian value.
+function gobUint(n) {
+  if (n < 128) return Buffer.from([n]);
+  const bytes = [];
+  for (let v = n; v > 0; v = Math.floor(v / 256)) bytes.unshift(v % 256);
+  return Buffer.from([256 - bytes.length, ...bytes]);
+}
+function buildSignerInfo(signature, uid, publicKey, name) {
+  const keyBlob = Buffer.concat([CERT_KEY_PREFIX, publicKey, Buffer.from([0, 0])]);
+  const certificate = Buffer.from(`CertPK=${keyBlob.toString("base64url")}==;CertPKID=${uid};name=${name};`, "utf8");
+  const body = Buffer.concat([CERT_BODY_HEAD, signature, Buffer.from([1, 27]), Buffer.from(uid, "utf8"),
+    CERT_AFTER_ID, gobUint(certificate.length), certificate, Buffer.from([0])]);
+  return Buffer.concat([CERT_PREFIX, gobUint(body.length), body]).toString("base64");
+}
+function splitSignerInfo(signerInfo, uid, publicKey) {
+  const raw = Buffer.from(signerInfo, "base64");
+  const start = CERT_PREFIX.length + 3;
+  if (raw.length < start + 6 + 64 + 2 + 27) return null;
+  const signature = raw.subarray(start + 6, start + 70);
+  const text = raw.toString("utf8");
+  const found = /;name=([^;]*);\x00$/.exec(text);
+  if (!found) return null;
+  const rebuilt = buildSignerInfo(signature, uid, publicKey, found[1]);
+  return rebuilt === signerInfo ? { signature, name: found[1] } : null;
+}
+
+function compactDeviceQrPayload(pairing) {
+  const seed = Buffer.from(pairing.private_key, "base64url");
+  const publicKey = Buffer.from(pairing.public_key, "base64url");
+  if (seed.length === 64 && publicKey.length === 32 && seed.subarray(32).equals(publicKey)) {
+    const split = splitSignerInfo(pairing.signer_info, pairing.uid, publicKey);
+    if (split) {
+      const compact = {
+        t: "ldq", a: pairing.app_id, n: pairing.node_id, u: pairing.uid, s: seed.subarray(0, 32).toString("base64url"),
+        g: split.signature.toString("base64url"), l: pairing.label, o: pairing.public_username, c: split.name,
+      };
+      seed.fill(0);
+      return JSON.stringify(compact);
+    }
+  }
+  seed.fill(0);
+  return null;
 }
 
 function pairingQrPayload(pairing) {
@@ -34,6 +95,11 @@ function pairingQrPayload(pairing) {
     "type", "version", "app_id", "node_id", "endpoint", "transport",
     "transport_key", "certificate_sha256", "request_id", "secret",
   ];
+  // A certificate this wrapper cannot rebuild exactly keeps the full identity QR.
+  if (legacy && compactQr) {
+    const compact = compactDeviceQrPayload(pairing);
+    if (compact) return compact;
+  }
   const qr = Object.fromEntries(fields.filter(key => Object.hasOwn(pairing, key)).map(key => [key, pairing[key]]));
   if (legacy && typeof qr.private_key === "string" && typeof qr.public_key === "string") {
     // sodium's 64-byte secret includes a duplicate public key. Both Android and
@@ -113,7 +179,7 @@ async function showPairingCode(resultPath, savedFile = false) {
     : "This is a persistent device identity; it does not expire after ten minutes. It remains usable while the device is authorized.\nIt contains your device private key. Keep the original safe and offline; delete transfer copies after pairing.";
   const expiry = pairing.type !== "lifedrive-device-identity" && Number.isFinite(pairing.expires)
     ? `\nInvitation expiry: ${new Date(pairing.expires * 1000).toISOString()} (UTC).\n${pairing.expires <= Date.now() / 1000 ? "This invitation has expired. Create a fresh invitation before pairing.\n" : ""}` : "";
-  const reopenHint = `\nTo show this QR again, run on this computer (on the node for an SSH session):\n  ${pairingCommand} --show-qr ${quoteArgument(identityPath)}\nThis only displays the saved pairing code; it does not install or upgrade LePan.\n`;
+  const reopenHint = `\nTo show this QR again, run on this computer (on the node for an SSH session):\n  ${pairingCommand} --show-qr ${quoteArgument(identityPath)}${qrFlag}\nThis only displays the saved pairing code; it does not install or upgrade LePan.\n`;
   const nodeRoot = process.platform === "win32" && path.basename(directory) === ".lifedrive-household"
     ? path.dirname(directory) : directory;
   // A saved file may have been moved off the node. Its new parent is not proof
@@ -161,19 +227,17 @@ async function showPairingCode(resultPath, savedFile = false) {
     }
     return;
   }
-  // Only print a terminal QR when the complete code fits. Otherwise, explain
-  // the required size and offer the saved image instead of a wrapped/clipped QR.
+  // Prevent horizontal wrapping; terminal height does not restrict printing.
+  // Users can scroll vertically when the QR is taller than the window.
   const width = modules.size + options.margin * 2;
   const widthMarker = `|${"-".repeat(width - 1)}|`;
-  const height = Math.ceil(width / 2);
   const fitsWidth = process.stdout.isTTY && process.stdout.columns > width;
-  const fitsScreen = fitsWidth && process.stdout.rows >= height + 3;
   // Redisplaying is deliberately quiet and creates no additional files.
   if (savedFile) {
     if (!process.stdout.isTTY) {
       process.stdout.write("Run --show-qr in an interactive terminal.\n");
-    } else if (!fitsScreen) {
-      process.stdout.write(`Terminal too small for the QR code: ${width + 1} columns and ${height + 3} rows needed.\n${widthMarker}\nResize the terminal, then run the same command again.\n`);
+    } else if (!fitsWidth) {
+      process.stdout.write(`Terminal too narrow for the QR code: ${width + 1} columns needed.\n${widthMarker}\nWiden the terminal, then run the same command again.\n`);
     } else {
       process.stdout.write("Keep it private.\n");
       process.stdout.write(expiry);
@@ -181,15 +245,15 @@ async function showPairingCode(resultPath, savedFile = false) {
     }
     return;
   }
-  const imageOpened = !fitsScreen && openPairingImage(imagePath);
+  const imageOpened = !fitsWidth && openPairingImage(imagePath);
   if (compact) {
     process.stdout.write("\nHow to pair your phone:\nOpen LePan > Settings > Set up users > Scan QR code.\n");
     if (imageOpened) process.stdout.write("\nThe QR image has opened automatically.\n");
-    if (!fitsScreen) {
+    if (!fitsWidth) {
       process.stdout.write(process.stdout.isTTY
-        ? `\nThe QR code needs ${width + 1} columns and ${height + 3} rows. Resize this terminal or open the saved image.\n${widthMarker}\nTo display it here, resize and run:\n`
+        ? `\nThe QR code needs ${width + 1} columns. Widen this terminal or open the saved image.\n${widthMarker}\nTo display it here, widen and run:\n`
         : "\nTo display the QR code, run in an interactive terminal:\n");
-      process.stdout.write(`\n  ${pairingCommand} --show-qr ${quoteArgument(identityPath)}\n`);
+      process.stdout.write(`\n  ${pairingCommand} --show-qr ${quoteArgument(identityPath)}${qrFlag}\n`);
     }
     process.stdout.write(`\nSaved QR image: ${imagePath}\nPairing file (Choose identity file): ${identityPath}\n`);
     process.stdout.write(expiry);
@@ -199,11 +263,11 @@ async function showPairingCode(resultPath, savedFile = false) {
     process.stdout.write("Open LePan > Settings > Set up users > Scan QR code.\n");
     process.stdout.write(imageOpened
       ? "The QR image has opened automatically. Scan it with your phone.\n"
-      : fitsScreen ? "Scan the QR code below with your phone.\n"
+      : fitsWidth ? "Scan the QR code below with your phone.\n"
       : process.stdout.isTTY
-        ? `The QR code needs ${width + 1} columns and ${height + 3} rows. Resize this terminal or open the saved image.\n`
+        ? `The QR code needs ${width + 1} columns. Widen this terminal or open the saved image.\n`
         : "A QR code cannot be displayed in this output. Run the --show-qr command below in an interactive terminal, or open the saved QR image.\n");
-    if (!fitsScreen && process.stdout.isTTY) process.stdout.write(`${widthMarker}\n`);
+    if (!fitsWidth && process.stdout.isTTY) process.stdout.write(`${widthMarker}\n`);
     process.stdout.write(`${privacyNote}\n`);
     process.stdout.write(expiry);
     process.stdout.write(`\nSaved QR image: ${imagePath}\n`);
@@ -216,7 +280,7 @@ async function showPairingCode(resultPath, savedFile = false) {
       process.stdout.write("Redisplaying the QR does not extend the invitation's ten-minute expiry.\n");
     }
   }
-  if (fitsScreen) {
+  if (fitsWidth) {
     printTerminalQr(modules, options.margin);
   }
 }
@@ -297,12 +361,16 @@ async function main() {
   if (argumentsList.includes("--help") || argumentsList.includes("-h")) {
     process.stdout.write(`Pairing help:
   --show-qr FILE  Display a saved identity or invitation as a QR code.
+  --compact-qr    Use the smaller device QR (a much smaller code to scan).
+                  Needs a LePan app version that supports it; add it to an
+                  install, upgrade or --show-qr command.
 
   Example:
     ${pairingCommand} --show-qr '/path/to/lepan-pairing.json'
 
-Run pairing commands on the computer running Leither. If the QR does not fit,
-resize to the printed columns and rows and run --show-qr again.
+Run pairing commands on the computer running Leither. If the terminal is too narrow,
+widen it to the printed number of columns and run --show-qr again.
+There is no minimum height; scroll vertically as needed.
 You can also open the saved PNG, or transfer the JSON privately to your phone
 and use LePan > Settings > Set up users > Choose identity file.
 
