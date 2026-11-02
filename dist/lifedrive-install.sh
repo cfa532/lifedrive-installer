@@ -383,9 +383,10 @@ configure_leither_service() (
   if [[ "$service_os" == Linux ]]; then
     unit="$service_work/lifedrive-leither.service"
     installed_unit=/etc/systemd/system/lifedrive-leither.service
-    # Reject systemd specifiers, variable expansion, escapes and line breaks.
-    # Ordinary spaces in directory names remain supported through quoting.
-    case "$LEITHER_WORKDIR$service_home$account" in *$'\n'*|*$'\r'*|*'"'*|*'%'*|*'$'*|*'\'*) echo "Unsupported character in the Leither systemd service path or account." >&2; exit 1 ;; esac
+    # Reject systemd specifiers, variable expansion, escapes, line breaks and
+    # whitespace. systemd's path settings reject quoted values, so the unit
+    # paths must stay unquoted, which spaces would split.
+    case "$LEITHER_WORKDIR$service_home$account" in *[[:space:]]*|*$'\n'*|*$'\r'*|*'"'*|*'%'*|*'$'*|*'\'*) echo "Unsupported character in the Leither systemd service path or account." >&2; exit 1 ;; esac
     cat > "$unit" <<UNIT
 [Unit]
 Description=Leither node installed by LifeDrive
@@ -394,7 +395,7 @@ After=network-online.target
 [Service]
 Type=simple
 User=$account
-WorkingDirectory="$LEITHER_WORKDIR"
+WorkingDirectory=$LEITHER_WORKDIR
 Environment="HOME=$service_home"
 ExecStart="$LEITHER_WORKDIR/Leither" run
 UMask=0077
