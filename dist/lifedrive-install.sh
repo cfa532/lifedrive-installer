@@ -720,13 +720,15 @@ while IFS= read -r leither_pid; do
   fi
 
   discovered_root=""
-  if [[ "$leither_executable" == /* && "${leither_executable##*/}" == "Leither" ]]; then
+  # The running node's working directory is authoritative when its data moves;
+  # the executable may still be reached through an older path or symlink.
+  if [[ -n "$leither_cwd" && -x "$leither_cwd/Leither" ]]; then
+    discovered_root=$(cd "$leither_cwd" && pwd -P)
+  elif [[ "$leither_executable" == /* && "${leither_executable##*/}" == "Leither" ]]; then
     executable_dir="${leither_executable%/*}"
     if [[ -x "$executable_dir/Leither" ]]; then
       discovered_root=$(cd "$executable_dir" && pwd -P)
     fi
-  elif [[ -n "$leither_cwd" && -x "$leither_cwd/Leither" ]]; then
-    discovered_root=$(cd "$leither_cwd" && pwd -P)
   fi
 
   if [[ -n "$discovered_root" ]]; then
@@ -960,6 +962,11 @@ if [[ -d "$INSTALL_TEMP/bundle/identity" ]]; then
     mv "$LEITHER_WORKDIR/lifedrive-identity/.$identity_name.new" "$LEITHER_WORKDIR/lifedrive-identity/$identity_name"
   done
   chmod 700 "$LEITHER_WORKDIR/lifedrive-identity"
+  # Receiver assets are managed by the identity service, not a second installer.
+  for receiver_asset in "$LEITHER_WORKDIR/lifedrive-identity/"lifedrive-wechat-receiver-*; do
+    [[ -f "$receiver_asset" ]] || continue
+    chmod 700 "$receiver_asset"
+  done
 fi
 chmod 700 "$LEITHER_WORKDIR/lifeDrive"
 chmod 700 "$LEITHER_WORKDIR/lifeDrive/"*.sh
