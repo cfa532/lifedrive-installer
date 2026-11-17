@@ -198,6 +198,23 @@ sudo launchctl print system/uk.inoku.lifedrive-identity
 curl --fail http://127.0.0.1:4811/health
 ```
 
+## Ports and sharing
+
+LePan needs no port forwarding to work at home. What you forward on your router
+decides what works from outside:
+
+| Forwarded to this computer | What you get |
+| --- | --- |
+| Nothing | LePan on your home network only; the most private setup. |
+| The **Leither port** (Settings → Storage → Leither port, 4800 by default) | Your drive from anywhere, and sharing. Files and folders shared from **Files** are served by Leither and can be any size. A folder shared from a network drive downloads as a ZIP of up to 4 GB. |
+| The Leither port **and** the **HTTPS download port** (TCP 8443 by default) | Within a few minutes the node gets its own `<name>.drive.lepan.org` name and certificate, and network-drive shares stream over HTTPS with no size limit. Nothing else needs to be run. |
+
+The share screen says when a network-drive folder is limited to 4 GB and which
+port to forward. To use another HTTPS port, for example because 8443 is taken
+by the iPhone photo listener described below, set `"download_https_port"` in
+the identity configuration (`<Leither root>/.lifedrive-household/identity.json`),
+forward that port instead, and restart the identity service.
+
 ## iPhone photo backup with your own domain
 
 The photo HTTPS helper supports a domain controlled by the node owner. Use a
