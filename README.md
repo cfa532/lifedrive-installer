@@ -2,16 +2,16 @@
 
 This public repository contains versioned LifeDrive installation assets built from the private LifeAlbum source repository.
 
-## Version 0.7.70
+## Version 0.7.98
 
-The account service now serializes login renewal for each user, preventing
-simultaneous requests from overwriting temporary login files. It also discovers
-Leither's current local service port before each request, verifies the node's
-identity before using a changed endpoint, and follows port changes without an
-account-service restart. The existing mobile login protocol and stored data
-formats are unchanged.
+Upgrades check that the matching application is ready on your node before
+replacing installed files or stopping the account service. If the update cannot
+be prepared, your existing installation keeps running and you can try again
+later. The web app's upgrade notice supplies a command pinned to the version it
+offers. Users, device keys, files and backups are preserved.
 
-Both fixes are included in the packaged service for Linux, macOS and Windows.
+The release process verifies the matching shared application before publishing
+the installers or making the version available through npm.
 
 For an ordinary Windows or macOS installation, download the matching package from LePan's Cloudflare-backed download URLs:
 

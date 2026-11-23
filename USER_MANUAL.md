@@ -221,6 +221,11 @@ restart Leither.
 
 ### 3.1 Upgrade the node
 
+When the web app shows **Update available**, open it and copy the command it
+provides. That command names the offered version, so a later release cannot
+change what you install. Published updates are checked for readiness before
+being offered.
+
 On the node, as the account that runs Leither:
 
 ```bash
@@ -228,7 +233,7 @@ npx --yes @inoku/lepan@latest --upgrade
 ```
 
 To install a specific release instead of the latest, name it, for example
-`npx --yes @inoku/lepan@0.7.35 --upgrade`. Release versions are never reused,
+`npx --yes @inoku/lepan@0.7.98 --upgrade`. Release versions are never reused,
 so a version number always means the same files.
 
 Upgrade output shows the existing identity path or saved-pairing directory and a
@@ -239,32 +244,22 @@ upgrades preserve paired phones and do not issue or renew an invitation; to
 reconnect to an existing household account, run `--recover-device` with its name
 or user ID on the node. For another device, use **My devices** on a paired phone.
 
-The installer saves the previous application files to a backup directory, prints
-where, and then:
+The installer first prepares the update while keeping the installed files and
+account service intact. If it says the update is not ready or the node could
+not connect, leave the node running and try again later. You do not need to
+publish the application or obtain a developer key.
+
+Once ready, the installer saves the previous application files to a backup
+directory, installs the update, restarts the account service automatically, and
+verifies that it is running. A successful Linux/macOS household upgrade ends with:
 
 ```text
-LifeDrive application and identity-service files updated. Household users and keys were preserved.
-Restart only the LifeDrive identity service through its service manager to load the new binary.
+LePan 0.7.98 is active. Existing users and device keys were preserved.
 ```
 
-Then restart the identity service so the new program runs:
-
-```bash
-sudo systemctl restart lifedrive-identity    # Linux
-systemctl status lifedrive-identity          # confirm it is running again
-```
-
-On macOS:
-
-```bash
-sudo launchctl kickstart -k system/uk.inoku.lifedrive-identity
-sudo launchctl print system/uk.inoku.lifedrive-identity
-curl --fail http://127.0.0.1:4811/health
-```
-
-If startup fails, inspect `<Leither root>/.lifedrive-household/identity.log`.
-Custom configurations installed with `--household-config` still use the manual
-start command printed during installation.
+Windows reports **LePan Windows upgrade complete** after its account service is
+ready. Leither is not restarted on any platform. Custom configurations installed
+with `--household-config` still use the start command printed during installation.
 
 While the service restarts, apps show a connection error for a few seconds and
 retry by themselves. Uploads and backups that were in progress resume.
@@ -442,7 +437,7 @@ uploads that have not been committed yet.
 | Task | Where |
 |---|---|
 | Install on a node | `npx --yes @inoku/lepan@latest`; Linux/macOS then run it with `--upgrade --household` |
-| Upgrade a node | `npx --yes @inoku/lepan@latest --upgrade`; restart only identity if the platform installer does not do so |
+| Upgrade a node | Copy the command from **Update available**, or run `npx --yes @inoku/lepan@latest --upgrade`; the installer restarts the account service |
 | Check the node | Check the platform service/task and open `http://127.0.0.1:4811/health` locally |
 | Create the first user | Phone: **Settings → Set up users → Paste node identity** |
 | Add your own device | Existing device: **My devices → Pair another device**; new device: **Set up users → Choose identity file**; approve the match code |

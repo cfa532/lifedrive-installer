@@ -4,7 +4,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const os = require("node:os");
-const { randomUUID } = require("node:crypto");
+const { createHash, randomUUID } = require("node:crypto");
 const { spawnSync } = require("node:child_process");
 const { pathToFileURL } = require("node:url");
 
@@ -343,8 +343,59 @@ function windowsArguments(values) {
   return translated;
 }
 
+// Both release workflows call this before publishing anything that can become
+// npm latest. Building installers does not activate the shared application.
+async function verifyPublishedRelease(version) {
+  if (!/^\d+\.\d+\.\d+(?:[-.][0-9A-Za-z.-]+)?$/.test(version)) {
+    throw new Error("Invalid release version.");
+  }
+  const expectedChecksum = fs.readFileSync(checksumPath, "utf8").trim().split(/\s+/)[0];
+  const checksum = createHash("sha256").update(fs.readFileSync(bundlePath)).digest("hex");
+  if (!/^[a-f0-9]{64}$/i.test(expectedChecksum) || checksum !== expectedChecksum.toLowerCase()) {
+    throw new Error("The release bundle checksum does not match.");
+  }
+  const readObject = name => {
+    const result = spawnSync(process.platform === "win32" ? "tar.exe" : "tar",
+      ["-xOf", bundlePath, `lifeDrive/${name}`], { maxBuffer: 20 * 1024 * 1024 });
+    if (result.error || result.status !== 0) throw new Error("The release bundle could not be inspected.");
+    return result.stdout;
+  };
+  const manifest = JSON.parse(readObject("lifedrive-release.json").toString("utf8"));
+  if (manifest.product !== "LifeDriveServerApp" || manifest.version !== version) {
+    throw new Error("The bundled application does not match the requested release.");
+  }
+  const expectedWebHash = createHash("sha256").update(readObject("lifedrive.js")).digest("hex");
+  const origin = "http://drive.lepan.org";
+  const app = "FKI2uZtAp6ZjUeecxQ4PvBq4bvK";
+  const readPublished = async pathname => {
+    const response = await fetch(origin + pathname, { cache: "no-store", signal: AbortSignal.timeout(15000) });
+    if (!response.ok) throw new Error("The official application could not be reached.");
+    return response;
+  };
+  try {
+    const active = await (await readPublished(`/mm/${app}:last/lifedrive-release.json`)).json();
+    const health = await (await readPublished(`/entry?aid=${app}&ver=last&entry=health`)).json();
+    const web = await (await readPublished(`/mm/${app}:last/lifedrive.js`)).arrayBuffer();
+    if (active.product !== manifest.product || active.version !== version ||
+        health.success !== true || health.data?.status !== "ok" || health.data?.server_version !== version ||
+        createHash("sha256").update(Buffer.from(web)).digest("hex") !== expectedWebHash) {
+      throw new Error("The active application does not match the release.");
+    }
+  } catch {
+    throw new Error(`Release ${version} is not ready for users. Activate and verify the matching shared application before publishing installers or npm, then rerun the failed release job.`);
+  }
+  process.stdout.write(`Shared LePan ${version} is active; backend and web bundle match the release.\n`);
+}
+
 async function main() {
   const argumentsList = process.argv.slice(2);
+  if (argumentsList.includes("--verify-release")) {
+    if (argumentsList.length !== 2 || argumentsList[0] !== "--verify-release") {
+      throw new Error("Use --verify-release VERSION by itself.");
+    }
+    await verifyPublishedRelease(argumentsList[1]);
+    return;
+  }
   if (argumentsList.some(argument => argument === "--show-qr" || argument.startsWith("--show-qr="))) {
     const file = argumentsList[0] === "--show-qr" && argumentsList.length === 2
       ? argumentsList[1]

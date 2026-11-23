@@ -858,6 +858,17 @@ if [[ ! -x "$INSTALL_TEMP/bundle/lifeDrive/lifeDrive-setup.sh" || ! -f "$INSTALL
   exit 1
 fi
 
+# Synchronize and load the candidate while the previous application files and
+# identity executable are still intact. Never discover a missing publication
+# only after replacing the user's installation.
+if (( UPGRADE_ONLY )); then
+  if ! LIFEDRIVE_WORKDIR="$LEITHER_WORKDIR" LIFEDRIVE_LEITHER_PATH="$LEITHER_WORKDIR/Leither" \
+    /bin/bash "$INSTALL_TEMP/bundle/lifeDrive/lifeDrive-upgrade-household.sh" --preflight; then
+    echo "Your installed files and running account service were left unchanged." >&2
+    exit 1
+  fi
+fi
+
 if (( ! MANAGEMENT_ONLY )); then configure_macos_leither_firewall; fi
 
 if (( MANAGEMENT_ONLY )); then

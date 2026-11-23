@@ -414,6 +414,39 @@ try {
         throw "LePan release verification failed; required Windows files are missing."
     }
 
+    # Complete shared-app synchronization before stopping the existing account
+    # service or replacing either payload, just as the Unix installer does.
+    if ($Upgrade) {
+        $candidate = Get-Content -LiteralPath (Join-Path $sourceApp "lifedrive-release.json") -Raw | ConvertFrom-Json
+        $appMid = (Get-Content -LiteralPath (Join-Path $root "lifeDrive.appid") -Raw).Trim()
+        if ($appMid -notmatch '^[A-Za-z0-9_-]{20,64}$' -or $candidate.version -notmatch '^\d+\.\d+\.\d+$') {
+            throw "The update metadata is invalid. Your installed files and account service were left unchanged."
+        }
+        Write-Host "Preparing the published LePan update..."
+        Push-Location $root
+        try {
+            & (Join-Path $root "Leither.exe") mimei sync --mid $appMid *> (Join-Path $installTemp "sync.log")
+            if ($LASTEXITCODE -ne 0) { throw "The update could not be prepared. Your installed files and account service were left unchanged. Try again when the node is connected." }
+        } finally {
+            Pop-Location
+        }
+        $ready = $false
+        for ($attempt = 0; $attempt -lt 15; $attempt++) {
+            try {
+                $active = Invoke-RestMethod -Uri "http://127.0.0.1:$port/mm/${appMid}:last/lifedrive-release.json" -TimeoutSec 3
+                $appHealth = Invoke-RestMethod -Uri "http://127.0.0.1:$port/entry?aid=$appMid&ver=last&entry=health" -TimeoutSec 3
+                if ($active.version -eq $candidate.version -and $appHealth.success -eq $true -and $appHealth.data.server_version -eq $candidate.version) {
+                    $ready = $true
+                    break
+                }
+            } catch { }
+            Start-Sleep -Seconds 2
+        }
+        if (-not $ready) {
+            throw "LePan $($candidate.version) is not ready on this node. Your installed files and account service were left unchanged. Please try again later."
+        }
+    }
+
     $identityTask = Get-ScheduledTask -TaskName $identityTaskName -ErrorAction SilentlyContinue
     $installedIdentity = Join-Path $root "lifedrive-identity\lifedrive-identity-windows-amd64.exe"
     if ($identityTask) {

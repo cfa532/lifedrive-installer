@@ -43,5 +43,8 @@ jobs:
             echo "@inoku/lepan@$VERSION is already published."
             exit 0
           fi
+          # This also protects manual dispatch and public releases created
+          # outside the private workflow. npm latest drives the upgrade notice.
+          node bin/lifedrive.js --verify-release "$VERSION"
           npm version "$VERSION" --no-git-tag-version --allow-same-version
           npm publish --access public
