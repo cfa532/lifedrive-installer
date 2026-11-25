@@ -1,7 +1,7 @@
 # LifeDrive User Manual
 
 **Audience:** people who run a LifeDrive node, and the people who use it.
-**Covers:** installing LifeDrive on a node, upgrading it, how identity works, and what to do when a device or an identity is lost.
+**Covers:** installing LifeDrive on a node, upgrading it, how identity works, recovering a lost identity, and Leither storage maintenance.
 **Current release:** 0.7.35 (`npm view @inoku/lepan version` shows the latest).
 
 LifeDrive is a private drive that runs on your own Leither node. Your files stay on
@@ -432,13 +432,70 @@ uploads that have not been committed yet.
 
 ---
 
-## 6. Quick reference
+## 6. Storage, Trash and garbage collection
+
+### 6.1 Why emptying Trash may not lower disk usage immediately
+
+The **Used** value in Settings measures the blocks stored by Leither for all
+applications on the node. Moving a file to Trash keeps its data available for
+restoration. Emptying Trash removes LifeDrive's reference to it; Leither reclaims
+blocks that are no longer needed when it runs garbage collection (GC).
+
+Another copy, backup, share or retained version may still need the same blocks.
+GC preserves referenced data, so deleting a folder does not guarantee that all
+of its displayed size will be freed. The meter can stay unchanged until
+collection has reclaimed blocks and the usage reading has refreshed.
+
+### 6.2 GC is Leither node maintenance
+
+**Leither owns garbage collection.** A daily GC job belongs to the Leither node's
+maintenance setup. It is one job for the node, covering every application and
+user. LePan's phone apps, browser and installer do not create their own daily GC
+jobs.
+
+Leither's current periodic automatic GC is conditional on its configured
+storage watermark. A periodic check does not guarantee a collection every day
+or a run at midnight. If you want daily midnight collection, ask the node
+operator to configure it at the Leither/node level.
+
+For node operators:
+
+1. Use the account and directory of the running Leither node. If several nodes
+   run on the computer, verify the intended node identity first.
+2. Schedule the node's `Leither repo gc` command once daily using the operating
+   system's scheduler: cron or systemd on Linux, launchd on macOS, or Task
+   Scheduler on Windows (`Leither.exe repo gc`). Set the intended timezone
+   explicitly. Phones and browsers do not need to stay open.
+3. Keep only one scheduled GC job per node and prevent overlapping runs. Choose
+   a quiet period, such as midnight, and keep its completion or failure log.
+
+The command `date && sleep 17h && date && ./Leither repo gc && date` waits
+17 hours and performs one collection. It does not establish a recurring nightly
+schedule.
+
+### 6.3 While collection is running
+
+GC checks referenced data before reclaiming unused blocks. A large collection
+can take hours and delay uploads or other operations that need to pin data.
+Scheduling it at midnight sets its start time; it can continue into the day.
+Closing the terminal is not a reliable way to stop an active collector. Ask the
+node operator to check its state before starting another collection or
+interrupting the node, which may host other applications.
+
+See the canonical [Leither reference on references, pins and garbage
+collection](https://github.com/cfa532/Leither/blob/main/cfa532-docs/reference/LEITHER_AND_MIMEI.md#references-pins-and-garbage-collection-maintainer-confirmed)
+for versioned CLI, scheduling and cancellation details.
+
+---
+
+## 7. Quick reference
 
 | Task | Where |
 |---|---|
 | Install on a node | `npx --yes @inoku/lepan@latest`; Linux/macOS then run it with `--upgrade --household` |
 | Upgrade a node | Copy the command from **Update available**, or run `npx --yes @inoku/lepan@latest --upgrade`; the installer restarts the account service |
 | Check the node | Check the platform service/task and open `http://127.0.0.1:4811/health` locally |
+| Reclaim space after emptying Trash | Leither GC; ask the node operator about its collection schedule (section 6) |
 | Create the first user | Phone: **Settings → Set up users → Paste node identity** |
 | Add your own device | Existing device: **My devices → Pair another device**; new device: **Set up users → Choose identity file**; approve the match code |
 | Sign in a browser | Phone: **My devices → Pair a browser**; open the address it shows; **Scan browser QR code** |
